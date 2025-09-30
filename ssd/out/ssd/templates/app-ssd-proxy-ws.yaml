@@ -1,0 +1,274 @@
+---
+# Source: ssd/templates/app-ssd-proxy-ws.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: ssd-proxy-ws
+  namespace: onework2
+  labels:
+    helm.sh/chart: ssd-3.3.0
+    env: dev
+    app.kubernetes.io/name: ssd
+    app.kubernetes.io/instance: ssd-router
+    app.kubernetes.io/version: "1.16.x"
+    app.kubernetes.io/managed-by: Helm
+    app: proxy-ws
+spec:
+  ports:
+  - name: http
+    port: 3001
+    targetPort: 3001
+  selector:
+    env: dev
+    app.kubernetes.io/name: ssd
+    app: proxy-ws
+---
+# Source: ssd/templates/app-ssd-proxy-ws.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ssd-proxy-ws
+  namespace: onework2
+  labels:
+    helm.sh/chart: ssd-3.3.0
+    env: dev
+    app.kubernetes.io/name: ssd
+    app.kubernetes.io/instance: ssd-router
+    app.kubernetes.io/version: "1.16.x"
+    app.kubernetes.io/managed-by: Helm
+    app: proxy-ws
+spec:
+  replicas: 1
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels:
+      env: dev
+      app.kubernetes.io/name: ssd
+      app: proxy-ws
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: "25%"
+      maxUnavailable: 0
+  template:
+    metadata:
+      annotations:
+        checksum/routes: fbc796c28c00a19254eb1047e4a5216d2ad8aee21c2168b4d9618bba953c1345
+      labels:
+        env: dev
+        app.kubernetes.io/name: ssd
+        app: proxy-ws
+    spec:
+      automountServiceAccountToken: false
+      containers:
+      - name: proxy-ws
+        image: 192.168.139.80:5000/ssd/ssd-proxy-ws:1.13.0
+        imagePullPolicy: Always
+        env:
+        # ENV-vars
+        - name: DEFAULT_OK_REDIRECT_URL
+          value: "/ssd/"
+        - name: IAM_JWT_TARGET_HEADER_NAME
+          value: "Authorization"
+        - name: IAM_JWT_TOKEN_PREFIX
+          value: "Bearer"
+        - name: JWT_VERIFICATION_PUB_KEY
+          value: "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAwrl95kAoREGFC5FC7dEyEsMzpduGLPevWW5A1M3TOlUSBZ8tVP3YJE/YQuB6el51k1stj5poUaHan26/8zW1gCbiZUnZjPQyjecqYbWPp4dKQQgmzN8tB4oWKAqFv5xg5EA+hOhs+upNxIwWjchQWSopBN3+cN2Y5DwFeeWRGzMmxQIwmUgVIPiVpIgUwyVSGoICer/nOONJletszhA9PzXY1en5tjXHNT78M68WYvR0YR0wO2sNl/FaT/WwTxPxcI/amdCEn+2g+cUiUgvzCah/l10h/czx9HuNPvZD6N059BGFNVyJWOL40VpAHQ1ABx4i0U6FVCy/w8nmSSPuWQIDAQAB"
+        - name: ONEWORK_JWT_TOKEN_PREFIX
+          value: "Bearer"
+        - name: ONEWORK_SESSION_COOKIE_SAME_SITE
+          value: "None"
+        - name: SESSION_AUTH_ACCESS_REFRESH_DELTA_SECONDS
+          value: "120"
+        - name: SESSION_AUTH_CACHE_EXPIRATION_SECONDS
+          value: "36000"
+        - name: SESSION_AUTH_REFRESH_VALIDITY_EXPIRATION_SECONDS
+          value: "180"
+        - name: SSD_APPLICATION_CONFIG_SERVER_INTERNAL_URL
+          value: "http://ssd-cloud-config.onework.svc.cluster.local:8888"
+        - name: SSD_APPLICATION_DISCOVERY_SERVER_ROOT_INTERNAL_URL
+          value: "http://ssd-cloud-discovery.onework.svc.cluster.local:8761"
+        - name: SSD_DEPLOYMENT_PROFILE
+          value: "k8s"
+        - name: SSD_PROXY_KC_CLIENT
+          value: "onework-login"
+        - name: SSD_PROXY_LOGIN_FORM_TITLE
+          value: "Platform V Works"
+        - name: SSD_PROXY_REDIRECTS_PREFIX
+          value: "/ssd"
+        - name: SSD_PROXY_SECRETS_JSON_FILE_PATH
+          value: "/var/run/secrets/secrets.json"
+        - name: SSD_PROXY_SESSION_ENCRYPTOR_ENABLED
+          value: "false"
+        - name: SSD_PROXY_TARGET_LOG_FILE
+          value: "/var/log/ssd-v2/ssd-proxy-ws/error.log"
+        - name: SSD_PROXY_TOKEN_ENCRYPTOR_ENABLED
+          value: "false"
+        envFrom:
+        # ENV-vars from CM
+        - configMapRef:
+            name: ssd-common
+        ports:
+        - containerPort: 3001
+          name: http
+        # Probes
+        livenessProbe:
+          failureThreshold: 10
+          httpGet:
+            path: /health
+            port: 3001
+          initialDelaySeconds: 1
+          periodSeconds: 10
+          successThreshold: 1
+          timeoutSeconds: 2
+        startupProbe:
+          failureThreshold: 30
+          httpGet:
+            path: /health
+            port: 3001
+          initialDelaySeconds: 2
+          periodSeconds: 1
+          successThreshold: 1
+          timeoutSeconds: 2
+        readinessProbe:
+          failureThreshold: 10
+          httpGet:
+            path: /health
+            port: 3001
+          periodSeconds: 2
+          successThreshold: 1
+          timeoutSeconds: 2
+        # Resources
+        resources:
+          limits:
+            cpu: 1000m
+            memory: 300Mi
+          requests:
+            cpu: 1000m
+            memory: 300Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            add: []
+            drop:
+            - all
+          privileged: false
+          readOnlyRootFilesystem: false
+          runAsGroup: 10001
+          runAsNonRoot: true
+          runAsUser: 10001
+          seccompProfile:
+            type: RuntimeDefault
+        # Volumes
+        volumeMounts:
+        # Mount from CM
+        - mountPath: /usr/local/openresty/nginx/conf/nginx.conf
+          name: cm-proxy-ws
+          readOnly: true
+          subPath: nginx.conf
+        - mountPath: /usr/local/openresty/nginx/static/checkEmail.html
+          name: cm-proxy-ws
+          readOnly: true
+          subPath: checkEmail.html
+        - mountPath: /usr/local/openresty/nginx/static/login.html
+          name: cm-proxy-ws
+          readOnly: true
+          subPath: login.html
+        - mountPath: /usr/local/openresty/nginx/static/offlineTokenGeneration.html
+          name: cm-proxy-ws
+          readOnly: true
+          subPath: offlineTokenGeneration.html
+        - mountPath: /usr/local/openresty/nginx/static/resetPassword.html
+          name: cm-proxy-ws
+          readOnly: true
+          subPath: resetPassword.html
+        - mountPath: /usr/local/openresty/nginx/static/errorPages/accountDisabled.html
+          name: cm-proxy-ws
+          readOnly: true
+          subPath: accountDisabled.html
+        - mountPath: /usr/local/openresty/nginx/static/errorPages/forbidden.html
+          name: cm-proxy-ws
+          readOnly: true
+          subPath: forbidden.html
+        - mountPath: /usr/local/openresty/nginx/static/errorPages/notfound.html
+          name: cm-proxy-ws
+          readOnly: true
+          subPath: notfound.html
+        - mountPath: /usr/local/openresty/nginx/static/errorPages/sessionExpired.html
+          name: cm-proxy-ws
+          readOnly: true
+          subPath: sessionExpired.html
+        - mountPath: /usr/local/openresty/nginx/static/errorPages/sessionLimits.html
+          name: cm-proxy-ws
+          readOnly: true
+          subPath: sessionLimits.html
+        - mountPath: /usr/local/openresty/nginx/static/errorPages/unauthorized.html
+          name: cm-proxy-ws
+          readOnly: true
+          subPath: unauthorized.html
+        - mountPath: /usr/local/openresty/logrotate/ssd-proxy-ws.conf
+          name: cm-proxy-ws
+          readOnly: true
+          subPath: logrotate.conf
+        # Mount from Secrets
+        - mountPath: /var/run/secrets/secrets.json
+          name: secret-proxy-ws
+          readOnly: true
+          subPath: configuration.json
+        # Mount from Custom
+        - mountPath: /var/log/ssd-v2/ssd-proxy-ws/
+          name: logs-dir
+        - mountPath: /tmp/openresty/
+          name: run-dir
+      volumes:
+      # Volumes CM
+      - name: cm-proxy-ws
+        configMap:
+          name: ssd-proxy-ws
+          defaultMode: 256
+          items:
+          - key: nginx.conf
+            path: nginx.conf
+          - key: checkEmail.html
+            path: checkEmail.html
+          - key: login.html
+            path: login.html
+          - key: offlineTokenGeneration.html
+            path: offlineTokenGeneration.html
+          - key: resetPassword.html
+            path: resetPassword.html
+          - key: accountDisabled.html
+            path: accountDisabled.html
+          - key: forbidden.html
+            path: forbidden.html
+          - key: notfound.html
+            path: notfound.html
+          - key: sessionExpired.html
+            path: sessionExpired.html
+          - key: sessionLimits.html
+            path: sessionLimits.html
+          - key: unauthorized.html
+            path: unauthorized.html
+          - key: logrotate.conf
+            path: logrotate.conf
+      # Volumes Secrets
+      - name: secret-proxy-ws
+        secret:
+          secretName: ssd-proxy-ws
+          defaultMode: 256
+          items:
+          - key: configuration.json
+            path: configuration.json
+      # Volumes Custom
+      - name: logs-dir
+        emptyDir:
+          sizeLimit: 100Mi
+      - name: run-dir
+        emptyDir:
+          sizeLimit: 300Mi
+      # End of Volumes
+      ## podSpec
+      securityContext:
+        fsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault

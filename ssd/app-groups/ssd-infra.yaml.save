@@ -1,0 +1,57 @@
+  #        subPath: lb-ssd-db-48.sql
+  #      - path: /tmp/lb/lb-ssd-db-49.sql
+  #        subPath: lb-ssd-db-49.sql
+  envFromConfigmap:
+    - common
+  volFromSecret:
+    common-db-props:
+      - path: /var/run/secrets/db.yml
+        subPath: secret-props.yml
+        readOnly: true
+    common-props:
+      - path: /var/run/secrets/common.yml
+        subPath: secret-props.yml
+        readOnly: true
+  volFromCustom:
+    logs-dir:
+      mounts:
+        - mountPath: /var/log/ssd-v2/
+      volSpec:
+        emptyDir:
+          sizeLimit: 100Mi
+    web-server-tmp:
+      mounts:
+        - mountPath: /tmp
+      volSpec:
+        emptyDir:
+          sizeLimit: 100Mi
+  securityContext:
+    readOnlyRootFilesystem: true
+    runAsUser: 10001
+    runAsGroup: 10001
+    runAsNonRoot: true
+    privileged: false
+    allowPrivilegeEscalation: false
+    capabilities:
+      add: []
+      drop:
+        - all
+    seccompProfile:
+      type: RuntimeDefault
+  podSpec:
+    securityContext:
+      fsGroup: 10001
+      seccompProfile:
+        type: RuntimeDefault
+  ## Resources
+  resources:
+    requests:
+      cpu: 500m
+      memory: 750Mi
+    limits:
+      cpu: 1
+      memory: 1500Mi
+  service:
+    enable: true
+    ports:
+      28887: http

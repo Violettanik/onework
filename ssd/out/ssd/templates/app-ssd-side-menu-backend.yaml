@@ -1,0 +1,176 @@
+---
+# Source: ssd/templates/app-ssd-side-menu-backend.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: ssd-side-menu-backend
+  namespace: onework2
+  labels:
+    helm.sh/chart: ssd-3.3.0
+    env: dev
+    app.kubernetes.io/name: ssd
+    app.kubernetes.io/instance: ssd-core
+    app.kubernetes.io/version: "1.16.x"
+    app.kubernetes.io/managed-by: Helm
+    app: side-menu-backend
+spec:
+  ports:
+  - name: http
+    port: 28892
+    targetPort: 28892
+  selector:
+    env: dev
+    app.kubernetes.io/name: ssd
+    app: side-menu-backend
+---
+# Source: ssd/templates/app-ssd-side-menu-backend.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ssd-side-menu-backend
+  namespace: onework2
+  labels:
+    helm.sh/chart: ssd-3.3.0
+    env: dev
+    app.kubernetes.io/name: ssd
+    app.kubernetes.io/instance: ssd-core
+    app.kubernetes.io/version: "1.16.x"
+    app.kubernetes.io/managed-by: Helm
+    app: side-menu-backend
+spec:
+  replicas: 1
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels:
+      env: dev
+      app.kubernetes.io/name: ssd
+      app: side-menu-backend
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: "25%"
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        env: dev
+        app.kubernetes.io/name: ssd
+        app: side-menu-backend
+    spec:
+      automountServiceAccountToken: false
+      containers:
+      - name: side-menu-backend
+        image: 192.168.139.80:5000/ssd/ssd-side-menu-backend:1.13.0
+        imagePullPolicy: Always
+        env:
+        # ENV-vars
+        - name: SPRING_CONFIG_EXTRA_FILES
+          value: "/var/run/secrets/common.yml,/var/run/secrets/db.yml,/var/run/secrets/plugins-config.yml"
+        - name: SSD_SIDE_MENU_BACKEND_ANCHOR_POST_PROCESSING_ENABLED
+          value: "true"
+        envFrom:
+        # ENV-vars from CM
+        - configMapRef:
+            name: ssd-common
+        ports:
+        - containerPort: 28892
+          name: http
+        # Probes
+        livenessProbe:
+          failureThreshold: 10
+          httpGet:
+            path: /health
+            port: 28892
+          initialDelaySeconds: 60
+          timeoutSeconds: 5
+        startupProbe:
+          failureThreshold: 10
+          httpGet:
+            path: /health
+            port: 28892
+          initialDelaySeconds: 60
+          timeoutSeconds: 5
+        readinessProbe:
+          failureThreshold: 10
+          httpGet:
+            path: /health
+            port: 28892
+          initialDelaySeconds: 60
+          timeoutSeconds: 5
+        # Resources
+        resources:
+          limits:
+            cpu: 750m
+            memory: 750Mi
+          requests:
+            cpu: 500m
+            memory: 500Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            add: []
+            drop:
+            - all
+          privileged: false
+          readOnlyRootFilesystem: false
+          runAsGroup: 10001
+          runAsNonRoot: true
+          runAsUser: 10001
+          seccompProfile:
+            type: RuntimeDefault
+        # Volumes
+        volumeMounts:
+        # Mount from Secrets
+        - mountPath: /var/run/secrets/db.yml
+          name: secret-common-db-props
+          readOnly: true
+          subPath: secret-props.yml
+        - mountPath: /var/run/secrets/common.yml
+          name: secret-common-props
+          readOnly: true
+          subPath: secret-props.yml
+        - mountPath: /var/run/secrets/plugins-config.yml
+          name: secret-side-menu-backend-files
+          readOnly: true
+          subPath: plugins-config.yml
+        # Mount from Custom
+        - mountPath: /var/log/ssd-v2/
+          name: logs-dir
+        - mountPath: /tmp
+          name: web-server-tmp
+      volumes:
+      # Volumes Secrets
+      - name: secret-common-db-props
+        secret:
+          secretName: ssd-common-db-props
+          defaultMode: 256
+          items:
+          - key: secret-props.yml
+            path: secret-props.yml
+      - name: secret-common-props
+        secret:
+          secretName: ssd-common-props
+          defaultMode: 256
+          items:
+          - key: secret-props.yml
+            path: secret-props.yml
+      - name: secret-side-menu-backend-files
+        secret:
+          secretName: ssd-side-menu-backend-files
+          defaultMode: 256
+          items:
+          - key: plugins-config.yml
+            path: plugins-config.yml
+      # Volumes Custom
+      - name: logs-dir
+        emptyDir:
+          sizeLimit: 100Mi
+      - name: web-server-tmp
+        emptyDir:
+          sizeLimit: 100Mi
+      # End of Volumes
+      ## podSpec
+      securityContext:
+        fsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault

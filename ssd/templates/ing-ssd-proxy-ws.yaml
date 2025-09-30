@@ -1,0 +1,60 @@
+{{- $context := . }}
+{{- $fullName := include "ssd.fullname" . }}
+{{- $labels := include "ssd.labels" . }}
+{{- $selectorLabels := include "ssd.selectorLabels" . }}
+{{- with .Values.ssdProxyWs }}
+ {{- if and .ingress.enable .enable }}
+ {{- $app := .appName }}
+ {{- $fullAppName := printf "%s-%s" $fullName $app }}
+ {{- if .fullAppNameIsShort }}{{ $fullAppName = $fullName }}{{ end }}
+{{- if and .ingress.className (not (semverCompare ">=1.18-0" $context.Capabilities.KubeVersion.GitVersion)) }}
+  {{- if not (hasKey .ingress.annotations "kubernetes.io/ingress.class") }}
+  {{- $_ := set .ingress.annotations "kubernetes.io/ingress.class" .ingress.className}}
+  {{- end }}
+{{- end }}
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ $fullAppName }}
+  namespace: {{ $context.Release.Namespace }}
+  labels:
+    {{- $labels | nindent 4 }}
+    app: {{ $app }}
+  {{- with .ingress.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- if and .ingress.className (semverCompare ">=1.18-0" $context.Capabilities.KubeVersion.GitVersion) }}
+  ingressClassName: {{ .ingress.className }}
+  {{- end }}
+  {{- if .ingress.tls }}
+  tls:
+    {{- range .ingress.tls }}
+    - hosts:
+      {{- range .hosts }}
+      - {{ . | quote }}
+      {{- end }}
+      secretName: {{ .secretName }}
+    {{- end }}
+  {{- end }}
+  rules:
+  {{- range .ingress.hosts }}
+  - host: {{ if regexMatch ".*\\*.*" .host }}{{ .host | quote }}{{ else }}{{ .host }}{{ end }}
+    http:
+      paths:
+      {{- range .paths }}
+      - path: {{ .path }}
+        {{- if and .pathType (semverCompare ">=1.18-0" $context.Capabilities.KubeVersion.GitVersion) }}
+        pathType: {{ .pathType }}
+        {{- end }}
+        backend:
+          service:
+            name: {{ $fullAppName }}
+            port:
+              number: {{ .port }}
+      {{- end }}
+  {{- end }}
+ {{- end }}
+{{- end }}

@@ -1,0 +1,1872 @@
+{{- $context := . }}
+{{- $fullName := include "ssd.fullname" . }}
+{{- $labels := include "ssd.labels" . }}
+{{- $selectorLabels := include "ssd.selectorLabels" . }}
+{{- with .Values.ssdProxyWs }}
+ {{- if .enable }}
+ {{- $app := .appName }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $fullName }}-{{ $app }}
+  namespace: {{ $context.Release.Namespace }}
+  labels:
+    {{- $selectorLabels | nindent 4 }}
+data:
+  nginx.conf: |-
+    worker_processes auto;
+
+    error_log {{ if eq .config.logs.errorMode "off" }} off{{ else }} {{ .config.logs.rootFolder }}/error.log {{ .config.logs.errorMode }}{{- end }};
+    pid        /tmp/openresty/nginx.pid;
+
+    events {
+      worker_connections  1024;
+    }
+
+    http {
+        include       /usr/local/openresty/nginx/conf/mime.types;
+        default_type  application/octet-stream;
+        
+        client_body_temp_path /tmp/openresty/nginx-client-body;
+        proxy_temp_path       /tmp/openresty/nginx-proxy;
+        fastcgi_temp_path     /tmp/openresty/nginx-fastcgi;
+        uwsgi_temp_path       /tmp/openresty/nginx-uwsgi;
+        scgi_temp_path        /tmp/openresty/nginx-scgi;
+        
+        {{ .config.logs.formatBlock | nindent 8 }}
+
+        sendfile     on;
+        keepalive_timeout  65;
+
+        large_client_header_buffers 4 256k;
+
+        lua_shared_dict iam_proxy_access_token_cache 256m;
+        lua_shared_dict ssd_proxy_privileges_cache 128m;
+        lua_shared_dict ssd_proxy_realm_keys_cache 10m;
+        lua_shared_dict ssd_proxy_refresh_token_cache 10m;
+
+        init_by_lua_file /opt/ssd-proxy-service/src/initialize_ssd_proxy_environment.lua;
+        resolver local=on valid=60s;
+
+        map $http_upgrade $connection_upgrade {
+            default upgrade;
+            ''      close;
+        }
+
+        server {
+            listen       3001;
+            access_log {{ if eq .config.logs.accessMode "off" }} off{{ else }} {{ .config.logs.rootFolder }}/access.log {{ .config.logs.accessMode }}{{- end }};
+            port_in_redirect off;
+            root /usr/local/openresty/nginx/static;
+
+            # Tracing block
+            add_header x-request-id $request_id;
+            proxy_set_header x-request-id $request_id;
+            proxy_set_header x-b3-traceid $http_x_b3_traceid;
+            proxy_set_header x-b3-spanid $http_x_b3_spanid;
+            proxy_set_header x-b3-parentspanid $http_x_b3_parentspanid;
+            proxy_set_header x-b3-sampled $http_x_b3_sampled;
+            proxy_set_header x-b3-flags $http_x_b3_flags;
+            proxy_set_header x-ot-span-context $http_x_ott_span_context;
+            proxy_set_header x-ssd-mode works;
+
+            {{- if .routes.forbiddenPathsRegex }}
+
+            location ~ {{ .routes.forbiddenPathsRegex }} {
+                deny all;
+            }
+            {{- end }}
+
+            location = /health {
+                access_log off;
+                add_header Content-Type application/json;
+
+                return 200 "{\"status\":\"pass\",\"releaseId\":\"1.17\",\"version\":\"1\",\"serviceId\":\"$hostname\",\"description\":\"health of ssd-proxy\"}";
+            }
+
+            location {{ .routes.proxyRootContext.internal }}/jwt/privileges {
+                add_header Content-Type text/plain;
+                return 200 "[WS-Privileges] header: $http_ws_privileges\n\n[Authorization] header: $http_authorization\n\n[x-ssd-mode] header: $http_x_ssd_mode";
+            }
+
+            location {{ .routes.proxyRootContext.internal }}/privileges {
+                {{ .routes.auth.auth_block }}
+                proxy_pass 'http://127.0.0.1:3001{{ .routes.proxyRootContext.internal }}/jwt/privileges';
+            }
+
+            {{- if not .routes.logoutOverride.platformIam }}
+
+            location ~ ^{{ .routes.proxyRootContext.internal }}/styles/(.*) {
+                try_files /styles/$1 =404;
+            }
+
+            location /login {
+                default_type "text/html";
+                alias  /usr/local/openresty/nginx/static/login.html;
+            }
+
+            location {{ .routes.proxyRootContext.internal }}/login {
+                default_type "text/html";
+                alias  /usr/local/openresty/nginx/static/login.html;
+            }
+
+            location {{ .routes.proxyRootContext.internal }}/proxy-static/js/ {
+                default_type "text/html";
+                alias  /usr/local/openresty/nginx/static/js/;
+            }
+
+            location {{ .routes.proxyRootContext.internal }}/reset-password {
+                default_type "text/html";
+                alias  /usr/local/openresty/nginx/static/resetPassword.html;
+            }
+
+            location {{ .routes.proxyRootContext.internal }}/send-reset-password {
+                default_type "text/html";
+                proxy_pass {{ .routes.ssd.rmRoot }}v2/users/password_reset;
+            }
+
+            location {{ .routes.proxyRootContext.internal }}/reset-password-email {
+                default_type "text/html";
+                alias  /usr/local/openresty/nginx/static/checkEmail.html;
+            }
+
+            location {{ .routes.proxyRootContext.internal }}/unauthorized {
+                default_type "text/html";
+                alias  /usr/local/openresty/nginx/static/errorPages/unauthorized.html;
+            }
+
+            location {{ .routes.proxyRootContext.internal }}/sessionExpired {
+                default_type "text/html";
+                alias  /usr/local/openresty/nginx/static/errorPages/sessionExpired.html;
+            }
+
+            location {{ .routes.proxyRootContext.internal }}/sessionLimits {
+                default_type "text/html";
+                alias  /usr/local/openresty/nginx/static/errorPages/sessionLimits.html;
+            }
+
+            location {{ .routes.proxyRootContext.internal }}/auth {
+                access_by_lua_file  {{ .routes.auth.login_script }};
+            }
+            {{- end }}
+
+            location {{ .routes.proxyRootContext.internal }} {
+              return 301 $scheme://$host{{ .routes.proxyRootContext.external }}/;
+            }
+
+            location {{ .routes.proxyRootContext.internal }}/logout {
+                {{- if .routes.logoutOverride.platformIam }}
+                # Dropping OneWork specific cookies
+                add_header            Set-Cookie         '{{ .routes.logoutOverride.platformIam.cookieName }}=;Path={{ .routes.proxyRootContext.external }};                  expires=Thu, 01 Jan 1970 00:00:00 GMT; Max-Age=0;';
+                add_header            Set-Cookie         '_gitlab_session=;        Path={{ .routes.proxyRootContext.external }}/tools/track;      expires=Thu, 01 Jan 1970 00:00:00 GMT; Max-Age=0;';
+                add_header            Set-Cookie         'JSESSIONID=;             Path={{ .routes.proxyRootContext.external }}/tools/jenkins-ci; expires=Thu, 01 Jan 1970 00:00:00 GMT; Max-Age=0;';
+                add_header            Set-Cookie         'JSESSIONID=;             Path={{ .routes.proxyRootContext.external }}/tools/jenkins-cd; expires=Thu, 01 Jan 1970 00:00:00 GMT; Max-Age=0;';
+                add_header            Set-Cookie         'ssd_context_group_path=; Path=/;                     expires=Thu, 01 Jan 1970 00:00:00 GMT; Max-Age=0;';
+
+                # Proxying request to original IAM logout endpoint
+                proxy_http_version    1.1;
+                proxy_set_header      Host               $host;
+                proxy_set_header      X-Forwarded-Host   $host;
+                proxy_set_header      X-Forwarded-Port   $server_port;
+                proxy_set_header      X-Forwarded-Proto  $scheme;
+                proxy_set_header      X-Real-IP          $remote_addr;
+                proxy_set_header      X-Forwarded-For    $proxy_add_x_forwarded_for;
+                proxy_set_header      Referer            {{ .routes.logoutOverride.platformIam.referer }};
+                proxy_ssl_name        {{ .routes.logoutOverride.platformIam.iamDomain }};
+                proxy_ssl_server_name on;
+                proxy_pass https://{{ .routes.logoutOverride.platformIam.iamDomain }}/openid-connect-auth/logout;
+               {{- else }}
+                access_by_lua_file  {{ .routes.auth.logout_script }};
+               {{- end }}
+            }
+
+            location {{ .routes.proxyRootContext.internal }}/ssd-transaction-manager/ {
+                {{ .routes.auth.auth_block_1w }}
+                {{- if .routes.ssd.optionsCorsStub }}
+                add_header 'Access-Control-Allow-Origin' $http_origin always;
+                add_header 'Access-Control-Allow-Credentials' true always;
+                add_header 'Access-Control-Allow-Methods' 'GET, POST, PATCH, PUT, DELETE, OPTIONS' always;
+                add_header 'Access-Control-Allow-Headers' 'Origin, Content-Type, X-Auth-Token' always;
+                if ($request_method = OPTIONS) {
+                  return 200;
+                }
+                {{- end }}
+                gzip on;
+                gzip_types application/json;
+                proxy_pass {{ .routes.ssd.tmRoot }};
+            }
+
+            location {{ .routes.proxyRootContext.internal }}/ssd-core-data/ {
+                {{ .routes.auth.auth_block_1w }}
+                {{- if .routes.ssd.optionsCorsStub }}
+                add_header 'Access-Control-Allow-Origin' $http_origin always;
+                add_header 'Access-Control-Allow-Credentials' true always;
+                add_header 'Access-Control-Allow-Methods' 'GET, POST, PATCH, PUT, DELETE, OPTIONS' always;
+                add_header 'Access-Control-Allow-Headers' 'Origin, Content-Type, X-Auth-Token' always;
+                if ($request_method = OPTIONS) {
+                  return 200;
+                }
+                {{- end }}
+                gzip on;
+                gzip_types application/json;
+                proxy_pass {{ .routes.ssd.coreDataRoot }};
+            }
+
+            location {{ .routes.proxyRootContext.internal }}/ssd-side-menu-backend/ {
+                {{ .routes.auth.auth_block_1w }}
+                {{- if .routes.ssd.optionsCorsStub }}
+                add_header 'Access-Control-Allow-Origin' $http_origin always;
+                add_header 'Access-Control-Allow-Credentials' true always;
+                add_header 'Access-Control-Allow-Methods' 'GET, POST, PATCH, PUT, DELETE, OPTIONS' always;
+                add_header 'Access-Control-Allow-Headers' 'Origin, Content-Type, X-Auth-Token' always;
+                if ($request_method = OPTIONS) {
+                  return 200;
+                }
+                {{- end }}
+                gzip on;
+                gzip_types application/json;
+                proxy_pass {{ .routes.ssd.sideMenuBackendRoot }};
+            }
+
+            location = {{ .routes.proxyRootContext.internal }}/ssd-core-data/v2/projects/context/filter {
+                {{ .routes.auth.auth_block_1w }}
+                {{- if .routes.ssd.optionsCorsStub }}
+                add_header 'Access-Control-Allow-Origin' $http_origin always;
+                add_header 'Access-Control-Allow-Credentials' true always;
+                add_header 'Access-Control-Allow-Methods' 'GET, POST, PATCH, PUT, DELETE, OPTIONS' always;
+                add_header 'Access-Control-Allow-Headers' 'Origin, Content-Type, X-Auth-Token' always;
+                if ($request_method = OPTIONS) {
+                  return 200;
+                }
+                {{- end }}
+                gzip on;
+                gzip_types application/json;
+                proxy_pass {{ .routes.ssd.coreDataRoot }}v2/projects/context/filter2end;
+            }
+
+            location {{ .routes.proxyRootContext.internal }}/ssd-role-manager/ {
+                {{ .routes.auth.auth_block_1w }}
+                {{- if .routes.ssd.optionsCorsStub }}
+                add_header 'Access-Control-Allow-Origin' $http_origin always;
+                add_header 'Access-Control-Allow-Credentials' true always;
+                add_header 'Access-Control-Allow-Methods' 'GET, POST, PATCH, PUT, DELETE, OPTIONS' always;
+                add_header 'Access-Control-Allow-Headers' 'Origin, Content-Type, X-Auth-Token' always;
+                if ($request_method = OPTIONS) {
+                  return 200;
+                }
+                {{- end }}
+                gzip on;
+                gzip_types application/json;
+                proxy_pass {{ .routes.ssd.rmRoot }};
+            }
+
+            location {{ .routes.proxyRootContext.internal }}/ssd-ui-admin/ {
+                {{ .routes.auth.auth_block_1w }}
+                {{- if .routes.ssd.optionsCorsStub }}
+                add_header 'Access-Control-Allow-Origin' $http_origin always;
+                add_header 'Access-Control-Allow-Credentials' true always;
+                add_header 'Access-Control-Allow-Methods' 'GET, POST, PATCH, PUT, DELETE, OPTIONS' always;
+                add_header 'Access-Control-Allow-Headers' 'Origin, Content-Type, X-Auth-Token' always;
+                if ($request_method = OPTIONS) {
+                  return 200;
+                }
+                {{- end }}
+                gzip on;
+                gzip_types application/json;
+                proxy_pass {{ .routes.ssd.uiAdminRoot }};
+            }
+
+            location {{ .routes.proxyRootContext.internal }}/ssd-cloud-admin {
+                {{ .routes.auth.auth_block_with_basic }}
+                proxy_pass {{ .routes.ssd.cloudAdminRoot }};
+            }
+            
+            {{- if not .routes.mfe.enable }}
+              location {{ .routes.proxyRootContext.internal }}{{ .routes.proxyRootContext.internal }}/ {
+                  proxy_pass http://127.0.0.1:3001{{ .routes.proxyRootContext.internal }}/;
+              }
+    
+              location = {{ .routes.proxyRootContext.internal }}organization/ {
+                  return 301 {{ .routes.proxyRootContext.internal }}organization;
+              }
+              
+              location ~ ^{{ .routes.proxyRootContext.internal }}/organization(\/*)(.*)/(js|fonts|css)/(.*) {
+                {{ .routes.auth.auth_block_1w }}
+                gzip on;
+                gzip_types application/json;
+                proxy_pass {{ .routes.ssd.uiRoot }}$3/$4$is_args$args;
+              } 
+            {{- end }}
+                        
+            location {{ .routes.proxyRootContext.internal }}/ {
+                {{ .routes.auth.auth_block_1w }}
+                {{- if .routes.ssd.optionsCorsStub }}
+                add_header 'Access-Control-Allow-Origin' $http_origin always;
+                add_header 'Access-Control-Allow-Credentials' true always;
+                add_header 'Access-Control-Allow-Methods' 'GET, POST, PATCH, PUT, DELETE, OPTIONS' always;
+                add_header 'Access-Control-Allow-Headers' 'Origin, Content-Type, X-Auth-Token' always;
+                if ($request_method = OPTIONS) {
+                  return 200;
+                }
+                {{- end }}
+                proxy_set_header X-Forwarded-For    $proxy_add_x_forwarded_for;
+                proxy_set_header X-Forwarded-Scheme https;
+                proxy_set_header X-Forwarded-Proto  https;
+                gzip on;
+                gzip_types application/json;
+                proxy_pass {{ .routes.ssd.uiRoot }};
+            }
+    
+    
+            {{- if .routes.mfe.enable }}
+            
+            #location ~ ^{{ .routes.proxyRootContext.internal }}/tools/swtr/a4/(?!.*remotes).*/static/(.*) {
+            #    {{ .routes.auth.auth_block_1w }}
+            #    proxy_pass {{ .routes.mfe.rootUrl }}/static/$2$is_args$args;
+            #}
+    
+            location {{ .routes.mfe.externalRoot }}/static/ {
+                {{ .routes.auth.auth_block_1w }}
+                proxy_pass {{ .routes.mfe.rootUrl }}/static/;
+            }
+    
+            location = {{ .routes.mfe.externalRoot }}/api/dashboard-layouts {
+                {{ .routes.auth.auth_block_1w }}
+                {{ .routes.mfe.dashboardLayouts | nindent 16 }}
+            }    
+    
+            location = {{ .routes.mfe.externalRoot }}/api/common-mf {
+                {{ .routes.auth.auth_block_1w }}
+                {{ .routes.mfe.commonMf | nindent 16 }}
+            }   
+    
+            location = {{ .routes.mfe.externalRoot }}/api/remote-routes {
+                {{ .routes.auth.auth_block_1w }}
+                {{ .routes.mfe.remoteRoutes | nindent 16 }}
+            }  
+    
+            location {{ .routes.mfe.externalRoot }}/ {
+                {{ .routes.auth.auth_block_1w }}
+                proxy_pass {{ .routes.mfe.rootUrl }}/;
+            }  
+    
+            location ~ ^{{ .routes.proxyRootContext.internal }}/(.*)/ssd-side-menu-backend/(.*) {
+                {{ .routes.auth.auth_block_1w }}
+                {{- if .routes.ssd.optionsCorsStub }}
+                add_header 'Access-Control-Allow-Origin' $http_origin always;
+                add_header 'Access-Control-Allow-Credentials' true always;
+                add_header 'Access-Control-Allow-Methods' 'GET, POST, PATCH, PUT, DELETE, OPTIONS' always;
+                add_header 'Access-Control-Allow-Headers' 'Origin, Content-Type, X-Auth-Token' always;
+                if ($request_method = OPTIONS) {
+                  return 200;
+                }
+                {{- end }}
+                gzip on;
+                gzip_types application/json;
+                proxy_pass {{ .routes.ssd.sideMenuBackendRoot }}$2$is_args$args;
+            }  
+    
+            location {{ .routes.mfe.ssdUiRoute }}{{ .routes.proxyRootContext.internal }}/ {
+                {{ .routes.auth.auth_block_1w }}
+                proxy_pass http://127.0.0.1:3001{{ .routes.proxyRootContext.internal }}/;
+            }
+    
+            location {{ .routes.mfe.ssdUiRoute }}/ {
+                {{ .routes.auth.auth_block_1w }}
+                proxy_pass {{ .routes.mfe.ssdUiTarget }}/;
+            }  
+            {{- end }}
+    
+            location {{ .routes.proxyRootContext.internal }}/tools/track/groups/ {
+                {{ or .routes.track.auth_block .routes.auth.auth_block }}
+                client_max_body_size {{ .routes.track.bodySizeLimit | default "100M" }};
+                proxy_set_header Host               {{ .routes.deploymentExternalUrl }};
+                proxy_set_header X-Forwarded-Proto  https;
+                proxy_set_header X-Real-IP          $remote_addr;
+                proxy_set_header X-Forwarded-For    $proxy_add_x_forwarded_for;
+                proxy_set_header X-Forwarded-Scheme https;
+                proxy_set_header Upgrade            $http_upgrade;
+                proxy_set_header Connection         $connection_upgrade;
+                proxy_http_version 1.1;
+                rewrite  ^  $request_uri;                                                              # get original URI
+                rewrite  ^{{ .routes.proxyRootContext.internal }}/tools/track/groups/(.*)  /$1  break; # drop /ssd/tools/track/groups prefix
+                return 400;                                                                            # if the second rewrite doesn't work
+                proxy_pass {{ .routes.track.url }}/groups$uri;
+                proxy_read_timeout     90;
+            }
+
+            location {{ .routes.proxyRootContext.internal }}/tools/track/ {
+                {{ or .routes.track.auth_block .routes.auth.auth_block }}
+                client_max_body_size {{ .routes.track.bodySizeLimit | default "100M" }};
+                proxy_set_header Host               {{ .routes.deploymentExternalUrl }};
+                proxy_set_header X-Forwarded-Proto https;
+                proxy_set_header X-Real-IP         $remote_addr;
+                proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+                proxy_set_header X-Forwarded-Scheme      https;
+                proxy_http_version 1.1;
+                proxy_set_header   Upgrade $http_upgrade;
+                proxy_set_header   Connection $connection_upgrade;
+                proxy_pass {{ .routes.track.url }}/;
+            }
+
+            location ~ ^{{ .routes.proxyRootContext.internal }}/tools/track/(.*\.git.*) {
+                client_max_body_size {{ .routes.track.bodySizeLimit | default "100M" }};
+                proxy_set_header Host              {{ .routes.deploymentExternalUrl }};
+                proxy_set_header X-Forwarded-Proto https;
+                proxy_set_header X-Real-IP         $remote_addr;
+                proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+                proxy_set_header X-Forwarded-Scheme      https;
+                proxy_pass {{ .routes.track.url }}/$1$is_args$args;
+                proxy_read_timeout     90;
+            }
+
+            location = {{ .routes.proxyRootContext.internal }}/tools/track/-/metrics {
+                proxy_set_header Host              {{ .routes.deploymentExternalUrl }};
+                proxy_set_header X-Forwarded-Proto https;
+                proxy_set_header X-Real-IP         $remote_addr;
+                proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+                proxy_set_header X-Forwarded-Scheme      https;
+                proxy_pass {{ .routes.track.url }}/-/metrics;
+                proxy_read_timeout     90;
+            }
+
+            location {{ .routes.proxyRootContext.internal }}/tools/track/assets/ {
+                proxy_set_header Host              {{ .routes.deploymentExternalUrl }};
+                proxy_set_header X-Forwarded-Proto https;
+                proxy_set_header X-Real-IP         $remote_addr;
+                proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+                proxy_set_header X-Forwarded-Scheme      https;
+                proxy_pass {{ .routes.track.url }}/assets/;
+                proxy_read_timeout     90;
+            }
+
+            location {{ .routes.proxyRootContext.internal }}/tools/track/sber_project_api/ {
+                proxy_set_header Host              {{ .routes.deploymentExternalUrl }};
+                proxy_set_header X-Forwarded-Proto https;
+                proxy_set_header X-Real-IP         $remote_addr;
+                proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+                proxy_set_header X-Forwarded-Scheme      https;
+                proxy_pass {{ .routes.track.url }}/sber_project_api/;
+                proxy_read_timeout     90;
+            }
+
+            location {{ .routes.proxyRootContext.internal }}/tools/track/api/ {
+                client_max_body_size {{ .routes.track.bodySizeLimit | default "100M" }};
+                proxy_set_header Host              {{ .routes.deploymentExternalUrl }};
+                proxy_set_header X-Forwarded-Proto https;
+                proxy_set_header X-Real-IP         $remote_addr;
+                proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+                proxy_set_header X-Forwarded-Scheme      https;
+                rewrite  ^  $request_uri;                         # get original URI
+                rewrite  ^{{ .routes.proxyRootContext.internal }}/tools/track/api/(.*)  $1  break;   # drop /ssd/tools/track/api prefix
+                return 400;                                       # if the second rewrite doesn't work
+                proxy_pass {{ .routes.track.url }}/api/$uri;
+                proxy_read_timeout     90;
+            }
+
+            location /integration/adapters/track/ {
+                proxy_set_header X-Forwarded-Proto https;
+                proxy_set_header X-Forwarded-Port 443;
+                proxy_set_header X-Forwarded-Ssl on;
+                proxy_set_header Host {{ .routes.deploymentExternalUrl }};
+                proxy_set_header Referer https://{{ .routes.deploymentExternalUrl }}{{ .routes.proxyRootContext.internal }}/tools/track/;
+                proxy_pass {{ .routes.track.url }}/;
+            }
+
+            location {{ .routes.proxyRootContext.internal }}/tools/sonar/ {
+                {{ or .routes.sonar.auth_block .routes.auth.auth_block_sonar }}
+                proxy_set_header X-Forwarded-Proto https;
+                proxy_set_header X-Forwarded-Host {{ .routes.deploymentExternalUrl }};
+                proxy_set_header Host {{ .routes.deploymentExternalUrl }};
+                proxy_pass {{ .routes.sonar.url }}/;
+            }
+
+            location {{ .routes.proxyRootContext.internal }}/tools/sonar/api/ {
+                client_max_body_size {{ .routes.sonar.bodySizeLimit | default "1M" }};
+                {{ or .routes.sonar.auth_block .routes.auth.auth_block_sonar }}
+                proxy_set_header X-Forwarded-Proto https;
+                proxy_set_header X-Forwarded-Host {{ .routes.deploymentExternalUrl }};
+                proxy_set_header Host {{ .routes.deploymentExternalUrl }};
+                proxy_pass {{ .routes.sonar.url }}/api/;
+            }
+
+            location {{ .routes.proxyRootContext.internal }}/tools/sonar/batch/ {
+                client_max_body_size {{ .routes.track.bodySizeLimit | default "1M" }};
+                {{ or .routes.sonar.auth_block .routes.auth.auth_block_sonar }}
+                proxy_set_header X-Forwarded-Proto https;
+                proxy_set_header X-Forwarded-Host {{ .routes.deploymentExternalUrl }};
+                proxy_set_header Host {{ .routes.deploymentExternalUrl }};
+                proxy_pass {{ .routes.sonar.url }}/batch/;
+            }
+
+            location {{ .routes.proxyRootContext.internal }}/tools/sonar/batch/index {
+                proxy_set_header X-Forwarded-Proto https;
+                proxy_set_header X-Forwarded-Host {{ .routes.deploymentExternalUrl }};
+                proxy_set_header Host {{ .routes.deploymentExternalUrl }};
+                proxy_pass {{ .routes.sonar.url }}/batch/index;
+            }
+
+            location {{ .routes.proxyRootContext.internal }}/tools/sonar/batch/file {
+                proxy_set_header X-Forwarded-Proto https;
+                proxy_set_header X-Forwarded-Host {{ .routes.deploymentExternalUrl }};
+                proxy_set_header Host {{ .routes.deploymentExternalUrl }};
+                proxy_pass {{ .routes.sonar.url }}/batch/file;
+            }
+            
+            {{- if .routes.sonar.overrideLoginRedirect }}
+            # required for sonar deployments on VM
+            location {{ .routes.proxyRootContext.internal }}/tools/sonar/sessions/new {
+                access_by_lua_block {
+                    local http_auth_plugin_redirect_param = ''
+                    local auth_redirect_param = ngx.req.get_uri_args()['return_to']
+                    if auth_redirect_param then
+                       http_auth_plugin_redirect_param = ngx.unescape_uri(auth_redirect_param)
+                       for context, project_id_param in string.gmatch(http_auth_plugin_redirect_param, "(.+)?(.+)") do
+                          http_auth_plugin_redirect_param = '/projects?' .. project_id_param
+                        end
+                       http_auth_plugin_redirect_param = ngx.encode_base64(http_auth_plugin_redirect_param)
+                       http_auth_plugin_redirect_param = '?redirect_to=' .. http_auth_plugin_redirect_param
+                    end
+                    return ngx.redirect('https://{{ .routes.deploymentExternalUrl }}{{ .routes.proxyRootContext.external }}/tools/sonar/sessions/init/httpHeadersPlugin' .. http_auth_plugin_redirect_param)
+                  }
+            }
+            {{- end }}
+
+            location /integration/adapters/snr/ {
+                proxy_set_header X-Forwarded-Proto https;
+                proxy_set_header X-Forwarded-Host {{ .routes.deploymentExternalUrl }};
+                proxy_set_header Host {{ .routes.deploymentExternalUrl }};
+                proxy_pass {{ .routes.sonar.url }}/;
+            }
+
+            {{- $rootScope := . -}}
+            {{- range $jenkinsConfig := .routes.jenkins }}
+            location = {{ $rootScope.routes.proxyRootContext.internal }}/tools/{{ $jenkinsConfig.type }}/jnlpJars/agent.jar {
+                proxy_pass {{ $jenkinsConfig.url }}/jnlpJars/agent.jar;
+            }
+
+            location = {{ $rootScope.routes.proxyRootContext.internal }}/tools/{{ $jenkinsConfig.type }}/wsagents/ {
+                {{ or $jenkinsConfig.auth_block $rootScope.routes.auth.auth_block_jenkins }}
+                proxy_http_version 1.1;
+                proxy_set_header   Upgrade $http_upgrade;
+                proxy_set_header   Connection "upgrade";
+                proxy_pass {{ $jenkinsConfig.url }}/wsagents/;
+            }
+
+            location ~ ^{{ $rootScope.routes.proxyRootContext.internal }}/tools/{{ $jenkinsConfig.type }}/computer/(.*)/jenkins-agent.jnlp {
+                rewrite ^  $request_uri;
+                rewrite ^{{ $rootScope.routes.proxyRootContext.internal }}/tools/{{ $jenkinsConfig.type }}/(.*)  $1  break;
+                return  400;
+                proxy_pass {{ $jenkinsConfig.url }}/$uri;
+                proxy_read_timeout     90;
+            }
+
+            location ~ ^{{ $rootScope.routes.proxyRootContext.internal }}/tools/{{ $jenkinsConfig.type }}/tcpSlaveAgentListener/ {
+                rewrite ^  $request_uri;
+                rewrite ^{{ $rootScope.routes.proxyRootContext.internal }}/tools/{{ $jenkinsConfig.type }}/(.*)  $1  break;
+                return  400;
+                proxy_pass {{ $jenkinsConfig.url }}/$uri;
+                proxy_read_timeout     90;
+            }
+
+            location ~ ^{{ $rootScope.routes.proxyRootContext.internal }}/tools/{{ $jenkinsConfig.type }}/(.+) {
+                client_max_body_size {{ $jenkinsConfig.bodySizeLimit | default "1M" }};
+                {{ or $jenkinsConfig.auth_block $rootScope.routes.auth.auth_block_jenkins }}
+                rewrite  ^  $request_uri;
+                rewrite  ^{{ $rootScope.routes.proxyRootContext.internal }}/tools/{{ $jenkinsConfig.type }}/(.*)  $1  break;
+                return 400;
+                proxy_pass {{ $jenkinsConfig.url }}/$uri;
+            }
+
+            location {{ $rootScope.routes.proxyRootContext.internal }}/tools/{{ $jenkinsConfig.type }}/ {
+                {{ or $jenkinsConfig.auth_block $rootScope.routes.auth.auth_block_jenkins }}
+                proxy_pass {{ $jenkinsConfig.url }}/;
+            }
+
+            location /integration/adapters/{{ $jenkinsConfig.type }}/ {
+                proxy_set_header X-Forwarded-Proto https;
+                proxy_set_header Host {{ $rootScope.routes.deploymentExternalUrl }};
+                proxy_set_header Referer https://{{ $rootScope.routes.deploymentExternalUrl }}/ssd/tools/{{ $jenkinsConfig.type }}/;
+                proxy_set_header WS-Privileges '[]';
+                proxy_pass {{ $jenkinsConfig.url }}/;
+            }
+            {{- end }}
+
+            {{- range $scConfig := .routes.sourceControl }}
+    
+            {{- if ($scConfig.platformMfe).enable }}  
+    
+            location = {{ $rootScope.routes.proxyRootContext.internal }}/tools/{{ $scConfig.type }}/mf-manifest.json {
+                {{ or $scConfig.auth_block $rootScope.routes.auth.auth_block_with_basic }}
+                proxy_pass {{ $scConfig.url }}/mf-manifest.json;
+            }
+    
+            location ~ ^{{ $rootScope.routes.proxyRootContext.internal }}/tools/{{ $scConfig.type }}(.*)(\/*)static/(.*) {
+                {{ or $scConfig.auth_block $rootScope.routes.auth.auth_block_with_basic }}
+                proxy_pass {{ $scConfig.url }}/static/$3$is_args$args;
+            }
+            
+            location ~* ^{{ $rootScope.routes.proxyRootContext.internal }}/tools/{{ $scConfig.type }}/(.*)(\/*)api/(.*) {
+                {{ or $scConfig.auth_block $rootScope.routes.auth.auth_block_with_basic }}
+                proxy_pass {{ $scConfig.platformMfe.scBeRoot }}/$3$is_args$args;
+            }       
+    
+            location ~* ^{{ $rootScope.routes.proxyRootContext.internal }}/tools/{{ $scConfig.type }}/(explore/repos|repo/create|notifications(|/.*)|admin|user/settings(|/.*)|org/[^/]+/(privileges|settings|dashboard)|[^/]+/[^/]+/(tags|settings(|/.)|activity(|/.))|pulls)$ {
+                {{ or $scConfig.auth_block $rootScope.routes.auth.auth_block_with_basic }}
+                proxy_pass {{ $scConfig.url }}/$1$is_args$args;
+            }    
+    
+            location ~* ^{{ $rootScope.routes.proxyRootContext.internal }}/tools/{{ $scConfig.type }}/([^/]+)/([^/]+)/_edit/([^/]+)/(.+)$ {
+                {{ or $scConfig.auth_block $rootScope.routes.auth.auth_block_with_basic }}
+                client_max_body_size {{ $scConfig.bodySizeLimit | default "1000M" }};
+                proxy_set_header X-Forwarded-Proto https;
+                proxy_set_header X-Forwarded-Port  443;
+                proxy_set_header x-ssd-mode works;
+                proxy_pass {{ $scConfig.url }}/$1/$2/_edit/$3/$4;
+                proxy_set_header Host {{ $rootScope.routes.deploymentExternalUrl }};
+                proxy_set_header X-Real-IP $remote_addr;
+                proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            }
+    
+            location ~* ^{{ $rootScope.routes.proxyRootContext.internal }}/tools/{{ $scConfig.type }}/([^/]+)$ {
+                {{ or $scConfig.auth_block $rootScope.routes.auth.auth_block_with_basic }}
+                client_max_body_size {{ $scConfig.bodySizeLimit | default "1000M" }};
+                proxy_set_header X-Forwarded-Proto https;
+                proxy_set_header X-Forwarded-Port  443;
+                proxy_set_header x-ssd-mode works;
+                proxy_pass {{ $scConfig.platformMfe.mfePlatformRootUrl }}/$1;
+                proxy_set_header Host {{ $rootScope.routes.deploymentExternalUrl }};
+                proxy_set_header X-Real-IP $remote_addr;
+                proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            }
+    
+            location ~* ^{{ $rootScope.routes.proxyRootContext.internal }}/tools/{{ $scConfig.type }}/org/([^/]+)/teams$ {
+                {{ or $scConfig.auth_block $rootScope.routes.auth.auth_block_with_basic }}
+                client_max_body_size {{ $scConfig.bodySizeLimit | default "1000M" }};
+                proxy_set_header X-Forwarded-Proto https;
+                proxy_set_header X-Forwarded-Port  443;
+                proxy_set_header x-ssd-mode works;
+                proxy_pass {{ $scConfig.platformMfe.mfePlatformRootUrl }}/$1;
+                proxy_set_header Host {{ $rootScope.routes.deploymentExternalUrl }};
+                proxy_set_header X-Real-IP $remote_addr;
+                proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            }
+    
+            location ~* ^{{ $rootScope.routes.proxyRootContext.internal }}/tools/{{ $scConfig.type }}/org/([^/]+)/teams/new$ {
+                {{ or $scConfig.auth_block $rootScope.routes.auth.auth_block_with_basic }}
+                client_max_body_size {{ $scConfig.bodySizeLimit | default "1000M" }};
+                proxy_set_header X-Forwarded-Proto https;
+                proxy_set_header X-Forwarded-Port  443;
+                proxy_set_header x-ssd-mode works;
+                proxy_pass {{ $scConfig.platformMfe.mfePlatformRootUrl }}/$1;
+                proxy_set_header Host {{ $rootScope.routes.deploymentExternalUrl }};
+                proxy_set_header X-Real-IP $remote_addr;
+                proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            }
+    
+            location ~* ^{{ $rootScope.routes.proxyRootContext.internal }}/tools/{{ $scConfig.type }}/org/([^/]+)/teams/(.+)$ {
+                {{ or $scConfig.auth_block $rootScope.routes.auth.auth_block_with_basic }}
+                client_max_body_size {{ $scConfig.bodySizeLimit | default "1000M" }};
+                proxy_set_header X-Forwarded-Proto https;
+                proxy_set_header X-Forwarded-Port  443;
+                proxy_set_header x-ssd-mode works;
+                proxy_pass {{ $scConfig.platformMfe.mfePlatformRootUrl }}/$1;
+                proxy_set_header Host {{ $rootScope.routes.deploymentExternalUrl }};
+                proxy_set_header X-Real-IP $remote_addr;
+                proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            }
+    
+            location ~* ^{{ $rootScope.routes.proxyRootContext.internal }}/tools/{{ $scConfig.type }}/([^/]+)/([^/]+)$ {
+                {{ or $scConfig.auth_block $rootScope.routes.auth.auth_block_with_basic }}
+                client_max_body_size {{ $scConfig.bodySizeLimit | default "1000M" }};
+                proxy_set_header X-Forwarded-Proto https;
+                proxy_set_header X-Forwarded-Port  443;
+                proxy_set_header x-ssd-mode works;
+                proxy_pass {{ $scConfig.platformMfe.mfePlatformRootUrl }}/$1;
+                proxy_set_header Host {{ $rootScope.routes.deploymentExternalUrl }};
+                proxy_set_header X-Real-IP $remote_addr;
+                proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            }
+    
+            location ~* ^{{ $rootScope.routes.proxyRootContext.internal }}/tools/{{ $scConfig.type }}/([^/]+)/([^/]+)/src/branch/([^/]+)/(.+)$ {
+                {{ or $scConfig.auth_block $rootScope.routes.auth.auth_block_with_basic }}
+                client_max_body_size {{ $scConfig.bodySizeLimit | default "1000M" }};
+                proxy_set_header X-Forwarded-Proto https;
+                proxy_set_header X-Forwarded-Port  443;
+                proxy_set_header x-ssd-mode works;
+                proxy_pass {{ $scConfig.platformMfe.mfePlatformRootUrl }}/$1;
+                proxy_set_header Host {{ $rootScope.routes.deploymentExternalUrl }};
+                proxy_set_header X-Real-IP $remote_addr;
+                proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            }
+    
+            location ~* ^{{ $rootScope.routes.proxyRootContext.internal }}/tools/{{ $scConfig.type }}/([^/]+)/([^/]+)/branches$ {
+                {{ or $scConfig.auth_block $rootScope.routes.auth.auth_block_with_basic }}
+                client_max_body_size {{ $scConfig.bodySizeLimit | default "1000M" }};
+                proxy_set_header X-Forwarded-Proto https;
+                proxy_set_header X-Forwarded-Port  443;
+                proxy_set_header x-ssd-mode works;
+                proxy_pass {{ $scConfig.platformMfe.mfePlatformRootUrl }}/$1;
+                proxy_set_header Host {{ $rootScope.routes.deploymentExternalUrl }};
+                proxy_set_header X-Real-IP $remote_addr;
+                proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            }
+    
+            location ~* ^{{ $rootScope.routes.proxyRootContext.internal }}/tools/{{ $scConfig.type }}/([^/]+)/([^/]+)/commits/branch/([^/]+)$ {
+                {{ or $scConfig.auth_block $rootScope.routes.auth.auth_block_with_basic }}
+                client_max_body_size {{ $scConfig.bodySizeLimit | default "1000M" }};
+                proxy_set_header X-Forwarded-Proto https;
+                proxy_set_header X-Forwarded-Port  443;
+                proxy_set_header x-ssd-mode works;
+                proxy_pass {{ $scConfig.platformMfe.mfePlatformRootUrl }}/$1;
+                proxy_set_header Host {{ $rootScope.routes.deploymentExternalUrl }};
+                proxy_set_header X-Real-IP $remote_addr;
+                proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            }
+    
+            location ~* ^{{ $rootScope.routes.proxyRootContext.internal }}/tools/{{ $scConfig.type }}/([^/]+)/([^/]+)/pulls$ {
+                {{ or $scConfig.auth_block $rootScope.routes.auth.auth_block_with_basic }}
+                client_max_body_size {{ $scConfig.bodySizeLimit | default "1000M" }};
+                proxy_set_header X-Forwarded-Proto https;
+                proxy_set_header X-Forwarded-Port  443;
+                proxy_set_header x-ssd-mode works;
+                proxy_pass {{ $scConfig.platformMfe.mfePlatformRootUrl }}/$1;
+                proxy_set_header Host {{ $rootScope.routes.deploymentExternalUrl }};
+                proxy_set_header X-Real-IP $remote_addr;
+                proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            }
+    
+            location {{ $rootScope.routes.proxyRootContext.internal }}/tools/{{ $scConfig.type }}/ {
+                {{ or $scConfig.auth_block $rootScope.routes.auth.auth_block_with_basic }}
+                client_max_body_size {{ $scConfig.bodySizeLimit | default "1000M" }};
+                proxy_set_header X-Forwarded-Proto https;
+                proxy_set_header X-Forwarded-Port  443;
+                proxy_set_header x-ssd-mode works;
+                proxy_pass {{ $scConfig.url }}/;
+                proxy_set_header Host {{ $rootScope.routes.deploymentExternalUrl }};
+                proxy_set_header X-Real-IP $remote_addr;
+                proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            }
+            
+            {{- else }}
+    
+            location {{ $rootScope.routes.proxyRootContext.internal }}/tools/{{ $scConfig.type }}/ {
+                {{ or $scConfig.auth_block $rootScope.routes.auth.auth_block_with_basic }}
+                client_max_body_size {{ $scConfig.bodySizeLimit | default "1000M" }};
+                proxy_set_header X-Forwarded-Proto https;
+                proxy_set_header X-Forwarded-Port  443;
+                proxy_set_header x-ssd-mode works;
+                proxy_pass {{ $scConfig.url }}/;
+                proxy_set_header Host {{ $rootScope.routes.deploymentExternalUrl }};
+                proxy_set_header X-Real-IP $remote_addr;
+                proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            }
+    
+            {{- end }}
+
+            location ~ ^{{ $rootScope.routes.proxyRootContext.internal }}/tools/{{ $scConfig.type }}/([^/]*)/([^/]*\.git)([/]*)$ {
+                client_max_body_size {{ $scConfig.bodySizeLimit | default "1000M" }};
+
+                proxy_set_header Host {{ $rootScope.routes.deploymentExternalUrl }};
+                proxy_set_header X-Forwarded-Proto https;
+                proxy_set_header X-Real-IP         $remote_addr;
+                proxy_set_header x-ssd-mode works;
+                proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+                proxy_set_header X-Forwarded-Scheme      https;
+                proxy_pass {{ $scConfig.url }}/$1$is_args$args;
+            }
+            {{- end }}
+
+            {{- range $nexusConfig := .routes.nexus }}
+            location {{ $rootScope.routes.proxyRootContext.internal }}/tools/{{ $nexusConfig.type }}/ {
+                {{ or $nexusConfig.auth_block $rootScope.routes.auth.auth_block_with_basic }}
+                client_max_body_size {{ $nexusConfig.bodySizeLimit | default "1000M" }};
+                proxy_set_header X-Forwarded-Proto https;
+                proxy_set_header X-Forwarded-Port  443;
+                proxy_pass {{ $nexusConfig.url }}/;
+                proxy_set_header Host {{ $rootScope.routes.deploymentExternalUrl }};
+                proxy_set_header X-Real-IP $remote_addr;
+                proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            }
+
+            location {{ $rootScope.routes.proxyRootContext.internal }}/tools/{{ $nexusConfig.type }}/repository/ {
+                {{ or $nexusConfig.auth_block $rootScope.routes.auth.auth_block_with_basic }}
+                client_max_body_size {{ $nexusConfig.bodySizeLimit | default "1000M" }};
+                proxy_set_header X-Forwarded-Proto https;
+                proxy_set_header X-Forwarded-Port  443;
+                proxy_pass {{ $nexusConfig.url }}/repository/;
+                proxy_set_header Host {{ $rootScope.routes.deploymentExternalUrl }};
+                proxy_set_header X-Real-IP $remote_addr;
+                proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            }
+
+            location {{ $rootScope.routes.proxyRootContext.internal }}/tools/{{ $nexusConfig.type }}/service/rest/ {
+                {{ or $nexusConfig.auth_block $rootScope.routes.auth.auth_block_with_basic }}
+                client_max_body_size {{ $nexusConfig.bodySizeLimit | default "1000M" }};
+                proxy_set_header X-Forwarded-Proto https;
+                proxy_set_header X-Forwarded-Port  443;
+                rewrite ^ $request_uri;
+                rewrite ^{{ $rootScope.routes.proxyRootContext.internal }}/tools/{{ $nexusConfig.type }}/service/rest/(.*) $1 break;
+                return 400;
+                proxy_pass {{ $nexusConfig.url }}/service/rest/$uri;
+                proxy_set_header Host {{ $rootScope.routes.deploymentExternalUrl }};
+                proxy_set_header X-Real-IP $remote_addr;
+                proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            }
+
+            location {{ $rootScope.routes.proxyRootContext.internal }}/tools/{{ $nexusConfig.type }}/repositoryplain/ {
+                client_max_body_size {{ $nexusConfig.bodySizeLimit | default "1000M" }};
+                proxy_set_header X-Forwarded-Proto https;
+                proxy_set_header X-Forwarded-Port  443;
+                proxy_pass {{ $nexusConfig.url }}/repository/;
+                proxy_set_header Host {{ $rootScope.routes.deploymentExternalUrl }};
+                proxy_set_header X-Real-IP $remote_addr;
+                proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            }
+
+            # Nexus returns URL based on the request context, so direct access from adapter to k8s service
+            # leads to incorrect project link starting from 'http://nexus.nexus.svc.cluster.local/...'
+            # which is inacessible for external requests
+            location /integration/adapters/{{ $nexusConfig.type }}/service/rest/ {
+                proxy_set_header X-Forwarded-Proto https;
+                proxy_set_header Host {{ $rootScope.routes.deploymentExternalUrl }};
+                rewrite ^ $request_uri;
+                rewrite ^/integration/adapters/{{ $nexusConfig.type }}/service/rest/(.*) $1 break;
+                return 400;
+                proxy_pass {{ $nexusConfig.url }}/service/rest/$uri;
+            }
+
+            location /integration/adapters/{{ $nexusConfig.type }}/ {
+                proxy_set_header X-Forwarded-Proto https;
+                proxy_set_header Host {{ $rootScope.routes.deploymentExternalUrl }};
+                proxy_pass {{ $nexusConfig.url }}/;
+            }
+            {{- end }}
+
+            location {{ .routes.proxyRootContext.internal }}/tools/fose/ {
+                {{ or .routes.fose.auth_block .routes.auth.auth_block }}
+                proxy_pass {{ .routes.fose.front }}/;
+            }
+
+            location {{ .routes.proxyRootContext.internal }}/tools/fose/api/ {
+                {{ or .routes.fose.auth_block .routes.auth.auth_block }}
+                client_max_body_size {{ .routes.fose.bodySizeLimit | default "10M" }};
+                proxy_pass {{ .routes.fose.back }}/api/;
+            }
+
+            location {{ .routes.proxyRootContext.internal }}/tools/fose/proxy/ {
+                {{ or .routes.fose.auth_block .routes.auth.auth_block }}
+                client_max_body_size {{ .routes.fose.bodySizeLimit | default "10M" }};
+                proxy_pass {{ .routes.fose.proxy }}/proxy/;
+            }
+
+            location /integration/adapters/fose/ {
+                proxy_set_header X-Forwarded-Proto https;
+                proxy_set_header X-Forwarded-Port 443;
+                proxy_set_header X-Forwarded-Ssl on;
+                proxy_set_header Host {{ .routes.deploymentExternalUrl }};
+                proxy_pass {{ .routes.fose.back }}/;
+            }
+
+           location {{ .routes.proxyRootContext.internal }}/tools/dpm/ {
+                if ($request_uri ~ "/ssd/tools/dpm(/$|$)") {
+                  return 301 /ssd/tools/dpm/front/main/all;
+                }
+                {{ or .routes.dpm.auth_block .routes.auth.auth_block_dpm }}
+                proxy_set_header X-Forwarded-Proto https;
+                proxy_set_header Host {{ .routes.deploymentExternalUrl }};
+                proxy_set_header X-Real-IP $remote_addr;
+                proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+                proxy_pass {{ .routes.dpm.base }}/;
+            }
+
+           location {{ .routes.proxyRootContext.internal }}/tools/dpm/front {
+               {{ or .routes.dpm.auth_block .routes.auth.auth_block_dpm }}
+               proxy_set_header X-Forwarded-Proto https;
+               proxy_set_header Host {{ .routes.deploymentExternalUrl }};
+               proxy_set_header X-Real-IP $remote_addr;
+               proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+               proxy_pass {{ .routes.dpm.front }};
+           }
+
+           location {{ .routes.proxyRootContext.internal }}/tools/dpm/api/ {
+               {{ or .routes.dpm.auth_block .routes.auth.auth_block_dpm }}
+               client_max_body_size {{ .routes.dpm.bodySizeLimit | default "10M" }};
+               proxy_set_header X-Forwarded-Proto https;
+               proxy_set_header Host {{ .routes.deploymentExternalUrl }};
+               proxy_set_header X-Real-IP $remote_addr;
+               proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+               proxy_pass {{ .routes.dpm.api }}/;
+           }
+
+           location {{ .routes.proxyRootContext.internal }}/tools/dpm/auth/ {
+               {{ or .routes.dpm.auth_block .routes.auth.auth_block_dpm }}
+               proxy_set_header X-Forwarded-Proto https;
+               proxy_set_header Host {{ .routes.deploymentExternalUrl }};
+               proxy_set_header X-Real-IP $remote_addr;
+               proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+               proxy_pass {{ .routes.dpm.auth }}/;
+           }
+
+            location /integration/adapters/dpm/ {
+                proxy_set_header X-Forwarded-Proto https;
+                proxy_set_header X-Forwarded-Port 443;
+                proxy_set_header X-Forwarded-Ssl on;
+                proxy_set_header Host {{ .routes.deploymentExternalUrl }};
+                proxy_pass {{ .routes.dpm.base }}/dpm/;
+            }
+    
+            location /integration/adapters/dpm-auth/ {
+                proxy_set_header X-Forwarded-Proto https;
+                proxy_set_header X-Forwarded-Port 443;
+                proxy_set_header X-Forwarded-Ssl on;
+                proxy_set_header Host {{ .routes.deploymentExternalUrl }};
+                proxy_pass {{ .routes.dpm.auth }}/dpm/;
+            }
+
+           location {{ .routes.proxyRootContext.internal }}/tools/viewwork/ {
+                {{ or .routes.view.auth_block .routes.auth.auth_block }}
+                proxy_buffer_size  16k;
+                proxy_buffers   4 16k;
+                proxy_busy_buffers_size  16k;
+                proxy_pass {{ .routes.view.url }}/;
+            }
+
+            location {{ .routes.proxyRootContext.internal }}/tools/mock/ {
+                {{ .routes.auth.auth_block }}
+                proxy_pass {{ .routes.mock }}/;
+            }
+
+           location {{ .routes.proxyRootContext.internal }}/tools/pact/ {
+                {{ .routes.auth.auth_block }}
+                proxy_pass {{ .routes.pact }}/;
+            }
+    
+            location {{ .routes.proxyRootContext.internal }}/tools/loadtest/ {
+                 {{ or .routes.load.auth_block .routes.auth.auth_block }}
+                 proxy_set_header Host {{ .routes.deploymentExternalUrl }};
+                 proxy_set_header Referer https://{{ .routes.deploymentExternalUrl }}{{ .routes.proxyRootContext.internal }}/tools/loadtest/;
+                 proxy_pass {{ .routes.load.front }}/;
+             }
+
+            location {{ .routes.proxyRootContext.internal }}/tools/loadtest/back/ {
+                 {{ or .routes.load.auth_block .routes.auth.auth_block }}
+                 proxy_set_header Host {{ .routes.deploymentExternalUrl }};
+                 proxy_set_header Referer https://{{ .routes.deploymentExternalUrl }}{{ .routes.proxyRootContext.internal }}/tools/loadtest/back/;
+                 proxy_pass {{ .routes.load.back }}/;
+             }
+
+            location {{ .routes.proxyRootContext.internal }}/tools/loadtest/launcher/ {
+                 {{ or .routes.load.auth_block .routes.auth.auth_block }}
+                 proxy_set_header Host {{ .routes.deploymentExternalUrl }};
+                 proxy_set_header Referer https://{{ .routes.deploymentExternalUrl }}{{ .routes.proxyRootContext.internal }}/tools/loadtest/launcher/;
+                 proxy_pass {{ .routes.load.launcher }}/;
+             }
+
+            location {{ .routes.proxyRootContext.internal }}/tools/loadtest/pusher/ {
+                 {{ or .routes.load.auth_block .routes.auth.auth_block }}
+                 proxy_set_header Host {{ .routes.deploymentExternalUrl }};
+                 proxy_set_header Referer https://{{ .routes.deploymentExternalUrl }}{{ .routes.proxyRootContext.internal }}/tools/loadtest/pusher/;
+                 proxy_pass {{ .routes.load.pusher }}/;
+             }
+
+            location = {{ .routes.proxyRootContext.internal }}/tools/jazz/tokens/access {
+                  {{ or .routes.jazz.auth_block .routes.auth.auth_block }}
+                  {{- if .routes.ssd.optionsCorsStub }}
+                  add_header 'Access-Control-Allow-Origin' $http_origin;
+                  add_header 'Access-Control-Allow-Credentials' true;
+                  add_header 'Access-Control-Allow-Methods' 'GET, POST, PATCH, PUT, DELETE, OPTIONS';
+                  add_header 'Access-Control-Allow-Headers' 'Origin, Content-Type, X-Auth-Token';
+                  if ($request_method = OPTIONS) {
+                    return 200;
+                  }
+                  {{- end }}
+                  add_header Content-Type application/json;
+                  {{- if .routes.jazz.token.stub }}
+                  return 200 "{\"token\":\"{{ .routes.jazz.token.stub }}\"}";
+                  {{- else }}
+                  proxy_pass {{ .routes.jazz.token.endpoint }};
+                  {{- end }}
+            }
+            
+            {{- $rootScope := . -}}
+            {{- range $swtrConfig := .routes.swtr }}
+            
+            {{- if ($swtrConfig.platformMfe).enable }}
+            location = {{ $swtrConfig.route }}/  {
+                proxy_pass {{ $swtrConfig.platformMfe.mfePlatformRootUrl }}/;
+            } 
+    
+            location {{ $swtrConfig.route }}/wiki/migration  {
+                proxy_pass {{ $swtrConfig.platformMfe.mfePlatformRootUrl }};
+            }
+    
+            location {{ $swtrConfig.route }}/tms/archived  {
+                proxy_pass {{ $swtrConfig.platformMfe.mfePlatformRootUrl }};
+            }
+    
+            location ~ ^{{ $swtrConfig.route }}/configuration/(attributes|unittypes|linkstype|workflow)  {
+                proxy_pass {{ $swtrConfig.platformMfe.mfePlatformRootUrl }}/$1;
+            } 
+    
+            location ~ ^{{ $swtrConfig.route }}/(spaces|units|tms)/(all|current)  {
+                proxy_pass {{ $swtrConfig.platformMfe.mfePlatformRootUrl }}/$1;
+            } 
+    
+            location ~ ^{{ $swtrConfig.route }}/(board|scrum|burndown|cycles|wiki|filters)  {
+                proxy_pass {{ $swtrConfig.platformMfe.mfePlatformRootUrl }}/$1;
+            } 
+    
+            location {{ $rootScope.routes.proxyRootContext.internal }}/tools{{ $swtrConfig.route }}/ {
+                proxy_pass http://127.0.0.1:3001{{ $swtrConfig.route }}/;
+            }  
+            
+            location ~ ^{{ $swtrConfig.route }}/(.*)(\/*)ssd/(.*) {
+                {{ or $swtrConfig.auth_block $rootScope.routes.auth.auth_block_swtr }}
+                proxy_pass http://127.0.0.1:3001/ssd/$3$is_args$args;
+            }  
+            {{- end }}
+
+            location {{ $swtrConfig.route }}/rest/api {
+                {{ or $swtrConfig.auth_block $rootScope.routes.auth.auth_block_swtr }}
+
+                proxy_set_header Host {{ $rootScope.routes.deploymentExternalUrl }};
+                proxy_set_header X-Forwarded-Host $host;
+                proxy_set_header X-Forwarded-Port 443;
+                proxy_pass {{ $swtrConfig.be }};
+            }
+
+            location {{ $swtrConfig.route }}/swagger-ui {
+                {{ or $swtrConfig.auth_block $rootScope.routes.auth.auth_block_swtr }}
+
+                proxy_set_header Host {{ $rootScope.routes.deploymentExternalUrl }};
+                proxy_set_header X-Forwarded-Port 443;
+                proxy_pass {{ $swtrConfig.be }};
+            }
+
+            location {{ $swtrConfig.route }}/api-docs {
+                {{ or $swtrConfig.auth_block $rootScope.routes.auth.auth_block_swtr }}
+
+                proxy_set_header Host {{ $rootScope.routes.deploymentExternalUrl }};
+                proxy_set_header X-Forwarded-Port 443;
+                proxy_pass {{ $swtrConfig.be }};
+            }
+
+            location {{ $swtrConfig.route }}/actuator {
+                proxy_set_header Host {{ $rootScope.routes.deploymentExternalUrl }};
+                proxy_set_header X-Forwarded-Port 443;
+                proxy_pass {{ $swtrConfig.be }};
+            }
+
+            location {{ $swtrConfig.route }}/extension/plugin/v2/rest/api {
+                {{ or $swtrConfig.auth_block $rootScope.routes.auth.auth_block_swtr }}
+
+                proxy_set_header Host {{ $rootScope.routes.deploymentExternalUrl }};
+                proxy_set_header X-Forwarded-Port 443;
+                proxy_pass {{ $swtrConfig.be }};
+            }
+
+            location {{ $swtrConfig.route }}/drawio {
+                {{ or $swtrConfig.auth_block $rootScope.routes.auth.auth_block_swtr }}
+
+                proxy_set_header Host {{ $rootScope.routes.deploymentExternalUrl }};
+                proxy_set_header X-Forwarded-Port 443;
+                proxy_pass {{ $swtrConfig.drawio }};
+            }
+
+            location {{ $swtrConfig.route }}/plantuml {
+                {{ or $swtrConfig.auth_block $rootScope.routes.auth.auth_block_swtr }}
+
+                proxy_set_header Host {{ $rootScope.routes.deploymentExternalUrl }};
+                proxy_set_header X-Forwarded-Port 443;
+                proxy_pass {{ $swtrConfig.plantuml }};
+            }
+
+            location {{ $swtrConfig.route }} {
+                {{ or $swtrConfig.auth_block $rootScope.routes.auth.auth_block_swtr }}
+
+                proxy_set_header Host {{ $rootScope.routes.deploymentExternalUrl }};
+                proxy_set_header X-Forwarded-Host $host;
+                proxy_set_header X-Forwarded-Port 443;
+                proxy_pass {{ $swtrConfig.fe }};
+                proxy_redirect off;
+            }
+            {{- end }}
+
+            {{ .routes.customRoutes | nindent 12 }}
+
+           {{- if .routes.logoutOverride.platformIam }}
+
+           # LOGOUT OVERRIDING
+           # OneWork can't be redirected to custom endpoint after logout, so some boolean cookie is
+           # sent in response at this endpoint and checked during other requests proxying. When detected - redirect
+           # to overriden logout is fired.
+           # (validation logic should be described in `.routes.auth.auth_block`, logout redirection is in `{{ .routes.proxyRootContext.internal }}/logout` )
+           location {{ .routes.proxyRootContext.internal }}/ssd-ui-admin/v2/logout {
+               access_by_lua_block {
+                  if ngx.var['cookie_{{ .routes.logoutOverride.platformIam.cookieName }}'] ~= 'true' then
+                    ngx.header["Set-Cookie"] = "{{ .routes.logoutOverride.platformIam.cookieName }}=true;Path={{ .routes.proxyRootContext.external }};HttpOnly=true;Secure=true;SameSite=LaX;Max-Age=1d"
+                  end
+                  ngx.status = 200
+                  ngx.say('{ "httpStatusWrap": { "value": 200, "reasonPhrase": "OK", "error": false }, "serviceResponseError": null,  "returned": "true" }')
+                  ngx.header.content_type = 'application/json';
+                  ngx.exit(200);
+              }
+           }
+           {{- end }}
+
+           {{- if .routes.kcOverride }}
+
+           # Proxying w/o changing requests' structure
+           location /keycloak/ {
+                proxy_pass {{ .routes.kcOverride }}/;
+            }
+
+           #  OVERRIDING BEHAVIOUR FOR KEYCLOAK SE API COMPATIBILITY
+           ## User roles processing
+           location ~ ^/keycloak/auth/admin/realms/([^/]+)/users/([^/]+)/role-mappings/clients/([^/]+)$ {
+                proxy_pass {{ .routes.kcOverride }}/auth/realms/$1/platform/role-mappings/$2/clients/$3;
+            }
+
+           ## User groups processing
+           location ~ ^/keycloak/auth/admin/realms/([^/]+)/users/([^/]+)/groups/([^/]+)$ {
+              set $overridden_method $request_method;
+              if ($request_method = PUT) {
+                  set $overridden_method POST;
+              }
+              proxy_pass {{ .routes.kcOverride }}/auth/realms/$1/platform/users/$2/groups/$3;
+              proxy_method $overridden_method;
+            }
+            {{- end }}
+        }
+    }
+
+  accountDisabled.html: |-
+    <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+    <html xmlns="http://www.w3.org/1999/xhtml" class="login-pf">
+
+    <head>
+        <meta charset="utf-8">
+        <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+        <meta name="robots" content="noindex, nofollow">
+        <meta name="viewport" content="width=device-width,initial-scale=1"/>
+        <title>{{ .env.SSD_PROXY_LOGIN_FORM_TITLE }} - Account disabled</title>
+        <link href="styles/base.css" rel="stylesheet" />
+        <link href="styles/app.css" rel="stylesheet" />
+        <link href="styles/patternfly.min.css" rel="stylesheet" />
+        <link href="styles/patternfly-additions.min.css" rel="stylesheet" />
+        <link href="styles/pficon.css" rel="stylesheet" />
+        <link href="styles/login.css" rel="stylesheet" />
+        <link href="styles/tile.css" rel="stylesheet" />
+    </head>
+    <body class="">
+    <div class="login-pf-page">
+        <div class="card-pf">
+            <header class="login-pf-header">
+                <h1 id="kc-page-title">
+                    Ошибка доступа
+                </h1>
+            </header>
+            <div id="kc-content">
+                <div id="kc-content-wrapper" align="center">
+                    Учетная запись пользователя заблокирована.<br>
+                    Пожалуйста, обратитесь к координатору и повторите попытку <a href="{{ .routes.proxyRootContext.external }}/">входа</a>
+                </div>
+            </div>
+        </div>
+    </div>
+    </body>
+    </html>
+
+  forbidden.html: |-
+    <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+    <html xmlns="http://www.w3.org/1999/xhtml" class="login-pf">
+
+    <head>
+        <meta charset="utf-8">
+        <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+        <meta name="robots" content="noindex, nofollow">
+        <meta name="viewport" content="width=device-width,initial-scale=1"/>
+        <title>{{ .env.SSD_PROXY_LOGIN_FORM_TITLE }} - Forbidden</title>
+        <link href="styles/base.css" rel="stylesheet" />
+        <link href="styles/app.css" rel="stylesheet" />
+        <link href="styles/patternfly.min.css" rel="stylesheet" />
+        <link href="styles/patternfly-additions.min.css" rel="stylesheet" />
+        <link href="styles/pficon.css" rel="stylesheet" />
+        <link href="styles/login.css" rel="stylesheet" />
+        <link href="styles/tile.css" rel="stylesheet" />
+    </head>
+    <body class="">
+    <div class="login-pf-page">
+        <div class="card-pf">
+            <header class="login-pf-header">
+                <h1 id="kc-page-title">
+                    Ошибка доступа
+                </h1>
+            </header>
+            <div id="kc-content">
+                <div id="kc-content-wrapper" align="center">
+                    Доступ к запрашиваемой странице запрещён.<br>
+                    Пожалуйста, вернитесь <a id="goback" href="#" onclick="history.go(-1)">назад</a> или перейдите на главную <a href="{{ .routes.proxyRootContext.external }}/">страницу</a>
+                </div>
+            </div>
+        </div>
+    </div>
+    </body>
+    </html>
+
+  notfound.html: |-
+    <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+    <html xmlns="http://www.w3.org/1999/xhtml" class="login-pf">
+
+    <head>
+        <meta charset="utf-8">
+        <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+        <meta name="robots" content="noindex, nofollow">
+        <meta name="viewport" content="width=device-width,initial-scale=1"/>
+        <title>{{ .env.SSD_PROXY_LOGIN_FORM_TITLE }} - Not found</title>
+        <link href="styles/base.css" rel="stylesheet" />
+        <link href="styles/app.css" rel="stylesheet" />
+        <link href="styles/patternfly.min.css" rel="stylesheet" />
+        <link href="styles/patternfly-additions.min.css" rel="stylesheet" />
+        <link href="styles/pficon.css" rel="stylesheet" />
+        <link href="styles/login.css" rel="stylesheet" />
+        <link href="styles/tile.css" rel="stylesheet" />
+    </head>
+    <body class="">
+    <div class="login-pf-page">
+        <div class="card-pf">
+            <header class="login-pf-header">
+                <h1 id="kc-page-title">
+                    Ошибка доступа
+                </h1>
+            </header>
+            <div id="kc-content">
+                <div id="kc-content-wrapper" align="center">
+                    Страница не найдена или доступ к ней запрещён.<br>
+                    Пожалуйста, вернитесь <a id="goback" href="#" onclick="history.go(-1)">назад</a> или перейдите на главную <a href="{{ .routes.proxyRootContext.external }}/">страницу</a>
+                </div>
+            </div>
+        </div>
+    </div>
+    </body>
+    </html>
+
+  sessionExpired.html: |-
+    <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+    <html xmlns="http://www.w3.org/1999/xhtml" class="login-pf">
+
+    <head>
+        <meta charset="utf-8">
+        <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+        <meta name="robots" content="noindex, nofollow">
+        <meta name="viewport" content="width=device-width,initial-scale=1"/>
+        <title>{{ .env.SSD_PROXY_LOGIN_FORM_TITLE }} - Session expired</title>
+        <link href="styles/base.css" rel="stylesheet" />
+        <link href="styles/app.css" rel="stylesheet" />
+        <link href="styles/patternfly.min.css" rel="stylesheet" />
+        <link href="styles/patternfly-additions.min.css" rel="stylesheet" />
+        <link href="styles/pficon.css" rel="stylesheet" />
+        <link href="styles/login.css" rel="stylesheet" />
+        <link href="styles/tile.css" rel="stylesheet" />
+    </head>
+    <body class="">
+    <div class="login-pf-page">
+        <div class="card-pf">
+            <header class="login-pf-header">
+                <h1 id="kc-page-title">
+                    Время действия сессии истекло
+                </h1>
+            </header>
+            <div id="kc-content">
+                <div id="kc-content-wrapper" align="center">
+                    Пожалуйста, осуществите вход <a href="{{ .routes.proxyRootContext.external }}/logout">повторно</a>
+                </div>
+            </div>
+        </div>
+    </div>
+    </body>
+    </html>
+
+  sessionLimits.html: |-
+    <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+    <html xmlns="http://www.w3.org/1999/xhtml" class="login-pf">
+
+    <head>
+        <meta charset="utf-8">
+        <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+        <meta name="robots" content="noindex, nofollow">
+        <meta name="viewport" content="width=device-width,initial-scale=1"/>
+        <title>{{ .env.SSD_PROXY_LOGIN_FORM_TITLE }} - Session limits</title>
+        <link href="styles/base.css" rel="stylesheet" />
+        <link href="styles/app.css" rel="stylesheet" />
+        <link href="styles/patternfly.min.css" rel="stylesheet" />
+        <link href="styles/patternfly-additions.min.css" rel="stylesheet" />
+        <link href="styles/pficon.css" rel="stylesheet" />
+        <link href="styles/login.css" rel="stylesheet" />
+        <link href="styles/tile.css" rel="stylesheet" />
+    </head>
+    <body class="">
+    <div class="login-pf-page">
+        <div class="card-pf">
+            <header class="login-pf-header">
+                <h1 id="kc-page-title">
+                    Ошибка доступа
+                </h1>
+            </header>
+            <div id="kc-content">
+                <div id="kc-content-wrapper" align="center">
+                    Попытка входа нарушает политику конкурентных учётных записей - достигнут лимит активных пользователей для домена
+                    <b>
+                        <script src="{{ .routes.proxyRootContext.external }}/proxy-static/js/dompurify/dist/purify.min.js"></script>
+                        <script type="text/javascript"> document.write(DOMPurify.sanitize(new URLSearchParams(window.location.search).get('domain'))) </script>
+                    </b>
+                    <br><br>
+                    Пожалуйста, попробуйте <a href="{{ .routes.proxyRootContext.external }}/login">войти</a> позже
+                </div>
+            </div>
+        </div>
+    </div>
+    </body>
+    </html>
+
+  unauthorized.html: |-
+    <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+    <html xmlns="http://www.w3.org/1999/xhtml" class="login-pf">
+
+    <head>
+        <meta charset="utf-8">
+        <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+        <meta name="robots" content="noindex, nofollow">
+        <meta name="viewport" content="width=device-width,initial-scale=1"/>
+        <title>{{ .env.SSD_PROXY_LOGIN_FORM_TITLE }} - Unauthorized</title>
+        <link href="styles/base.css" rel="stylesheet" />
+        <link href="styles/app.css" rel="stylesheet" />
+        <link href="styles/patternfly.min.css" rel="stylesheet" />
+        <link href="styles/patternfly-additions.min.css" rel="stylesheet" />
+        <link href="styles/pficon.css" rel="stylesheet" />
+        <link href="styles/login.css" rel="stylesheet" />
+        <link href="styles/tile.css" rel="stylesheet" />
+    </head>
+    <body class="">
+    <div class="login-pf-page">
+        <div class="card-pf">
+            <header class="login-pf-header">
+                <h1 id="kc-page-title">
+                    Ошибка доступа
+                </h1>
+            </header>
+            <div id="kc-content">
+                <div id="kc-content-wrapper" align="center">
+                    Пожалуйста, перейдите на главную <a href="{{ .routes.proxyRootContext.external }}/">страницу</a>
+                </div>
+            </div>
+        </div>
+    </div>
+    </body>
+    </html>
+
+  checkEmail.html: |-
+    <!DOCTYPE html>
+    <html xmlns="http://www.w3.org/1999/xhtml" class="login-pf">
+      <head>
+        <meta charset="utf-8" />
+        <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+        <meta name="robots" content="noindex, nofollow" />
+        <meta name="viewport" content="width=device-width,initial-scale=1" />
+        <title>Проверьте свою почту</title>
+        <link href="styles/base.css" rel="stylesheet" />
+        <link href="styles/app.css" rel="stylesheet" />
+        <link href="styles/patternfly.min.css" rel="stylesheet" />
+        <link href="styles/patternfly-additions.min.css" rel="stylesheet" />
+        <link href="styles/pficon.css" rel="stylesheet" />
+        <link href="styles/checkEmail.css" rel="stylesheet" />
+        <link href="styles/resetPassword.css" rel="stylesheet" />
+        <link href="styles/login.css" rel="stylesheet" />
+        <link href="styles/tile.css" rel="stylesheet" />
+      </head>
+      <body>
+        <div class="login-pf-page">
+          <div class="card-pf">
+            <header class="login-pf-header">
+              <h1 id="kc-page-title">Проверьте свою почту</h1>
+            </header>
+            <div id="kc-content-svg">
+              <svg
+                width="90.212891"
+                height="91.439941"
+                viewBox="0 0 90.2129 91.4399"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg"
+                xmlns:xlink="http://www.w3.org/1999/xlink"
+              >
+                <desc>Created with Pixso.</desc>
+                <defs />
+                <path
+                  id="Rectangle 1"
+                  d="M0 33.61C34.92 23.67 54.77 23.63 90.21 33.61L90.21 78.72L0 78.72L0 33.61Z"
+                  fill="#EBB134"
+                  fill-opacity="1.000000"
+                  fill-rule="evenodd"
+                />
+                <path
+                  id="Vector 4"
+                  d="M0 33.62C30.07 33.93 90.21 34.38 90.21 33.62C90.21 32.86 51.73 0 44.89 0C38.05 0 0 33.62 0 33.62Z"
+                  fill="#F7B82F"
+                  fill-opacity="1.000000"
+                  fill-rule="evenodd"
+                />
+                <rect
+                  id="Rectangle 1"
+                  x="14.468262"
+                  y="9.975220"
+                  width="61.276752"
+                  height="68.936333"
+                  fill="#EDEDED"
+                  fill-opacity="1.000000"
+                />
+                <circle
+                  id="Oval 1"
+                  cx="26.382812"
+                  cy="26.996521"
+                  r="2.553240"
+                  fill="#C4C4C4"
+                  fill-opacity="1.000000"
+                />
+                <circle
+                  id="Oval 2"
+                  cx="34.042480"
+                  cy="26.996521"
+                  r="2.553240"
+                  fill="#C4C4C4"
+                  fill-opacity="1.000000"
+                />
+                <circle
+                  id="Oval 3"
+                  cx="41.702637"
+                  cy="26.996521"
+                  r="2.553240"
+                  fill="#C4C4C4"
+                  fill-opacity="1.000000"
+                />
+                <circle
+                  id="Oval 4"
+                  cx="49.362305"
+                  cy="26.996521"
+                  r="2.553240"
+                  fill="#C4C4C4"
+                  fill-opacity="1.000000"
+                />
+                <circle
+                  id="Oval 5"
+                  cx="57.021973"
+                  cy="26.996521"
+                  r="2.553240"
+                  fill="#C4C4C4"
+                  fill-opacity="1.000000"
+                />
+                <circle
+                  id="Oval 6"
+                  cx="64.681641"
+                  cy="26.996521"
+                  r="2.553240"
+                  fill="#C4C4C4"
+                  fill-opacity="1.000000"
+                />
+                <rect
+                  id="Rectangle 1"
+                  x="14.468262"
+                  y="42.553284"
+                  width="61.276752"
+                  height="37.446903"
+                  fill="#FFFFFF"
+                  fill-opacity="0.480000"
+                />
+                <path
+                  id="Vector 2"
+                  d="M0 33.61L0 91.06L44.25 67.23L0 33.61Z"
+                  fill="#F9C643"
+                  fill-opacity="1.000000"
+                  fill-rule="evenodd"
+                />
+                <path
+                  id="Vector 3"
+                  d="M90.21 33.61L90.21 91.06L45.95 67.23L90.21 33.61Z"
+                  fill="#F9C643"
+                  fill-opacity="1.000000"
+                  fill-rule="evenodd"
+                />
+                <path
+                  id="Vector 1"
+                  d="M0.42 91.06C30.35 91.34 90.21 91.74 90.21 91.06C90.21 90.38 51.91 60.85 45.1 60.85C38.29 60.85 0.42 91.06 0.42 91.06Z"
+                  fill="#EBB134"
+                  fill-opacity="1.000000"
+                  fill-rule="evenodd"
+                />
+              </svg>
+            </div>
+            <div>
+              <p id="message">
+                Ссылка для восстановления пароля успешно отправлена на указанную
+                вами почту
+              </p>
+            </div>
+            <div id="kc-form-buttons" class="form-group">
+              <button
+                class="pf-c-button pf-m-primary pf-m-block btn-lg auth-button"
+                onclick="window.location.href='{{ .routes.proxyRootContext.external }}/login'"
+              >
+                Авторизоваться
+              </button>
+            </div>
+          </div>
+        </div>
+      </body>
+    </html>
+
+  login.html: |-
+    <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+    <html xmlns="http://www.w3.org/1999/xhtml" class="login-pf">
+      <head>
+        <meta charset="utf-8" />
+        <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+        <meta name="robots" content="noindex, nofollow" />
+        <meta name="viewport" content="width=device-width,initial-scale=1" />
+        <title>{{ .env.SSD_PROXY_LOGIN_FORM_TITLE }}</title>
+        <link href="styles/base.css" rel="stylesheet" />
+        <link href="styles/app.css" rel="stylesheet" />
+        <link href="styles/patternfly.min.css" rel="stylesheet" />
+        <link href="styles/patternfly-additions.min.css" rel="stylesheet" />
+        <link href="styles/pficon.css" rel="stylesheet" />
+        <link href="styles/login.css" rel="stylesheet" />
+        <link href="styles/tile.css" rel="stylesheet" />
+      </head>
+      <script src="{{ .routes.proxyRootContext.external }}/proxy-static/js/dompurify/dist/purify.min.js"></script>
+      <script type="text/javascript">
+        function setRedirectUrl() {
+          const urlParams = new URLSearchParams(window.location.search);
+          const redirectUrlValue = DOMPurify.sanitize(urlParams.get("redirectUrl"));
+          if (redirectUrlValue) {
+            document.getElementById("redirectUrl").value = redirectUrlValue;
+          }
+        }
+      </script>
+      <body class="" onload="setRedirectUrl()">
+        <div class="login-pf-page">
+          <div class="card-pf">
+            <header class="login-pf-header">
+              <h1 id="kc-page-title">{{ .env.SSD_PROXY_LOGIN_FORM_TITLE }}</h1>
+            </header>
+            <div id="kc-content">
+              <div id="kc-content-wrapper">
+                <div id="kc-form">
+                  <div id="kc-form-wrapper">
+                    <form
+                      id="kc-form-login"
+                      onsubmit="login.disabled = true; return true;"
+                      action="{{ .routes.proxyRootContext.external }}/auth"
+                      method="POST"
+                    >
+                      <div class="form-group">
+                        <label
+                          for="username"
+                          class="pf-c-form__label pf-c-form__label-text"
+                          >Имя пользователя</label
+                        >
+
+                        <input
+                          tabindex="1"
+                          id="username"
+                          class="pf-c-form-control"
+                          name="username"
+                          value=""
+                          type="text"
+                          autofocus
+                          autocomplete="off"
+                          aria-invalid=""
+                          required
+                          oninvalid="setCustomValidity('Введите имя пользователя')"
+                          oninput="setCustomValidity('')"
+                        />
+                      </div>
+
+                      <div class="form-group">
+                        <label
+                          for="password"
+                          class="pf-c-form__label pf-c-form__label-text"
+                          >Пароль</label
+                        >
+                        <input id="redirectUrl" type="hidden" name="redirectUrl" />
+                        <input
+                          tabindex="2"
+                          id="password"
+                          class="pf-c-form-control"
+                          name="password"
+                          type="password"
+                          autocomplete="off"
+                          aria-invalid=""
+                          required
+                          oninvalid="setCustomValidity('Введите пароль')"
+                          oninput="setCustomValidity('')"
+                        />
+                      </div>
+
+                      <div id="kc-form-buttons" class="form-group">
+                        <input
+                          type="hidden"
+                          id="id-hidden-input"
+                          name="credentialId"
+                        />
+                        <input
+                          tabindex="4"
+                          class="pf-c-button pf-m-primary pf-m-block btn-lg"
+                          name="login"
+                          id="kc-login"
+                          type="submit"
+                          value="Вход"
+                        />
+                      </div>
+                    </form>
+                  </div>
+                </div>
+                <div id="forgot-password">
+                  <a href="{{ .routes.proxyRootContext.external }}/reset-password">Забыли пароль?</a>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </body>
+    </html>
+
+  offlineTokenGeneration.html: |-
+    <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+    <html xmlns="http://www.w3.org/1999/xhtml" class="login-pf">
+
+    <head>
+        <meta charset="utf-8">
+        <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+        <meta name="robots" content="noindex, nofollow">
+        <meta name="viewport" content="width=device-width,initial-scale=1"/>
+        <title>{{ .env.SSD_PROXY_LOGIN_FORM_TITLE }}</title>
+        <link href="styles/base.css" rel="stylesheet" />
+        <link href="styles/app.css" rel="stylesheet" />
+        <link href="styles/patternfly.min.css" rel="stylesheet" />
+        <link href="styles/patternfly-additions.min.css" rel="stylesheet" />
+        <link href="styles/pficon.css" rel="stylesheet" />
+        <link href="styles/login.css" rel="stylesheet" />
+        <link href="styles/tile.css" rel="stylesheet" />
+    </head>
+    <body class="">
+    <div class="login-pf-page">
+        <div class="card-pf">
+            <header class="login-pf-header">
+                <h1 id="kc-page-title">
+                    {{ .env.SSD_PROXY_LOGIN_FORM_TITLE }} - Генерация токена пользователя
+                </h1>
+            </header>
+            <div id="kc-content">
+                <div id="kc-content-wrapper">
+                    <div id="kc-form">
+                        <div id="kc-token-wrapper">
+                            <form id="kc-token-gen" onsubmit="login.disabled = true; return true;" action="{{ .routes.proxyRootContext.external }}/offlineToken" method="POST">
+
+                                <div class="form-group">
+                                    <label for="password" class="pf-c-form__label pf-c-form__label-text">Пароль</label>
+                                    <input tabindex="2" id="password" class="pf-c-form-control" name="password" type="password" autocomplete="off"
+                                           aria-invalid=""
+                                           required
+                                           oninvalid="setCustomValidity('Введите пароль')"
+                                           oninput="setCustomValidity('')"
+                                    />
+                                </div>
+
+                                <div id="kc-form-buttons" class="form-group">
+                                    <input type="hidden" id="id-hidden-input" name="credentialId" />
+                                    <input tabindex="4" class="pf-c-button pf-m-primary pf-m-block btn-lg" name="login" id="kc-login" type="submit" value="Сгенерировать токен"/>
+                                </div>
+                            </form>
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    </body>
+    </html>
+
+  resetPassword.html: |-
+    <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+    <html xmlns="http://www.w3.org/1999/xhtml" class="login-pf">
+      <head>
+        <meta charset="utf-8" />
+        <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+        <meta name="robots" content="noindex, nofollow" />
+        <meta name="viewport" content="width=device-width,initial-scale=1" />
+        <title>{{ .env.SSD_PROXY_LOGIN_FORM_TITLE }}</title>
+        <link href="styles/base.css" rel="stylesheet" />
+        <link href="styles/resetPassword.css" rel="stylesheet" />
+        <link href="styles/app.css" rel="stylesheet" />
+        <link href="styles/patternfly.min.css" rel="stylesheet" />
+        <link href="styles/patternfly-additions.min.css" rel="stylesheet" />
+        <link href="styles/pficon.css" rel="stylesheet" />
+        <link href="styles/login.css" rel="stylesheet" />
+        <link href="styles/tile.css" rel="stylesheet" />
+      </head>
+      <script src="{{ .routes.proxyRootContext.external }}/proxy-static/js/dompurify/dist/purify.min.js"></script>
+      <script type="text/javascript">
+        async function handleSubmit(event) {
+          event.preventDefault();
+
+          const form = event.target;
+          const email = DOMPurify.sanitize(document.getElementById("email").value);
+          const data = { email: email };
+
+          try {
+            const response = await fetch(form.action, {
+              method: "PUT",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify(data),
+            });
+
+            if (!response.ok) {
+              throw new Error("Network response was not ok " + response.statusText);
+            }
+
+            window.location.href = "{{ .routes.proxyRootContext.external }}/reset-password-email";
+          } catch (error) {
+            alert("Что-то пошло не так, попробуйте еще раз");
+            console.error("Error:", error);
+          }
+        }
+
+        function validateEmail(email) {
+          const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+          return emailPattern.test(email);
+        }
+
+        document.addEventListener("DOMContentLoaded", function () {
+          const input = document.getElementById("email");
+          const button = document.getElementById("kc-login");
+
+          function toggleButtonState() {
+            if (validateEmail(input.value)) {
+              button.disabled = false;
+            } else {
+              button.disabled = true;
+            }
+          }
+
+          input.addEventListener("input", toggleButtonState);
+          toggleButtonState();
+        });
+      </script>
+      <body class="">
+        <div class="login-pf-page">
+          <div class="card-pf">
+            <header class="login-pf-header">
+              <h1 id="kc-page-title">Восстановление пароля</h1>
+              <p id="kc-page-subtitle">
+                Введите ваш email, мы отправим на него ссылку для восстановления
+                пароля
+              </p>
+            </header>
+            <div id="kc-content">
+              <div id="kc-content-wrapper">
+                <div id="kc-form">
+                  <div id="kc-form-wrapper">
+                    <form
+                      id="kc-form-login"
+                      onsubmit="handleSubmit(event)"
+                      action="{{ .routes.proxyRootContext.external }}/send-reset-password"
+                    >
+                      <div class="form-group">
+                        <input
+                          tabindex="1"
+                          id="email"
+                          class="pf-c-form-control"
+                          name="email"
+                          value=""
+                          type="email"
+                          autofocus
+                          autocomplete="off"
+                          aria-invalid="false"
+                          required
+                          placeholder="Введите email"
+                          oninvalid="setCustomValidity('Введите email')"
+                          oninput="setCustomValidity('')"
+                        />
+                        <div id="email-error" style="color: red; display: none">
+                          Введите корректный email
+                        </div>
+                      </div>
+
+                      <div id="kc-form-buttons" class="form-group">
+                        <button
+                          tabindex="4"
+                          class="pf-c-button pf-m-primary pf-m-block btn-lg"
+                          id="kc-login"
+                          type="submit"
+                          disabled
+                        >
+                          Отправить
+                        </button>
+
+                        <a id="kc-redirect-to-auth" href="{{ .routes.proxyRootContext.external }}/login"
+                          >Вернуться на авторизацию</a
+                        >
+                      </div>
+                    </form>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </body>
+    </html>
+
+  logrotate.conf: |
+    {{- if ne .config.logs.accessMode "off" }} 
+    {{ .config.logs.rootFolder }}/access.log {
+      rotate {{ .config.logs.rotation.access.depth | default "10" }}
+      size {{ .config.logs.rotation.access.size | default "5M" }}
+      missingok
+      copytruncate
+      nocreate
+      nodelaycompress
+      nomail
+      notifempty
+      noolddir
+      compress
+      postrotate
+            echo "Log {{ .config.logs.rootFolder }}/access.log was logrotated" && openresty -s reload
+      endscript
+    }
+    {{- end }}
+
+
+    {{- if ne .config.logs.errorMode "off" }} 
+    {{ .config.logs.rootFolder }}/error.log {
+      rotate {{ .config.logs.rotation.error.depth | default "10" }}
+      size {{ .config.logs.rotation.error.size | default "10M" }}
+      missingok
+      copytruncate
+      nocreate
+      nodelaycompress
+      nomail
+      notifempty
+      noolddir
+      compress
+      postrotate
+            echo "Log {{ .config.logs.rootFolder }}/error.log was logrotated" && openresty -s reload
+      endscript
+    }
+    {{- end }}
+
+  {{- end }}
+{{- end }}

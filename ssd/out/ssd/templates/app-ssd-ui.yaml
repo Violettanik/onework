@@ -1,0 +1,139 @@
+---
+# Source: ssd/templates/app-ssd-ui.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: ssd-ui
+  namespace: onework2
+  labels:
+    helm.sh/chart: ssd-3.3.0
+    env: dev
+    app.kubernetes.io/name: ssd
+    app.kubernetes.io/instance: ssd-router
+    app.kubernetes.io/version: "1.16.x"
+    app.kubernetes.io/managed-by: Helm
+    app: ui
+spec:
+  ports:
+  - name: http
+    port: 3000
+    targetPort: 3000
+  selector:
+    env: dev
+    app.kubernetes.io/name: ssd
+    app: ui
+---
+# Source: ssd/templates/app-ssd-ui.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ssd-ui
+  namespace: onework2
+  labels:
+    helm.sh/chart: ssd-3.3.0
+    env: dev
+    app.kubernetes.io/name: ssd
+    app.kubernetes.io/instance: ssd-router
+    app.kubernetes.io/version: "1.16.x"
+    app.kubernetes.io/managed-by: Helm
+    app: ui
+spec:
+  replicas: 1
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels:
+      env: dev
+      app.kubernetes.io/name: ssd
+      app: ui
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: "25%"
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        env: dev
+        app.kubernetes.io/name: ssd
+        app: ui
+    spec:
+      automountServiceAccountToken: false
+      containers:
+      - name: ui
+        image: 192.168.139.80:5000/ssd/ssd-ui:1.13.0
+        imagePullPolicy: Always
+        env:
+        # ENV-vars
+        - name: NGINX_LARGE_CLIENT_HEADER_BUFFER_CONFIG
+          value: "4 64k"
+        - name: NGINX_UI_SERVER_NAME
+          value: "ssd-ui"
+        - name: NGINX_WORKER_CONNECTIONS
+          value: "4096"
+        - name: NGINX_WORKER_PROCESSES
+          value: "5"
+        - name: NGINX_WORKER_RLIMIT_NOFILE
+          value: "8192"
+        - name: SSD_LAUNCH_USER
+          value: "root"
+        envFrom:
+        # ENV-vars from CM
+        - configMapRef:
+            name: ssd-common
+        ports:
+        - containerPort: 3000
+          name: http
+        # Resources
+        resources:
+          limits:
+            cpu: 500m
+            memory: 200Mi
+          requests:
+            cpu: 100m
+            memory: 100Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            add: []
+            drop:
+            - all
+          privileged: false
+          readOnlyRootFilesystem: false
+          runAsGroup: 10001
+          runAsNonRoot: true
+          runAsUser: 10001
+          seccompProfile:
+            type: RuntimeDefault
+        # Volumes
+        volumeMounts:
+        # Mount from CM
+        - mountPath: /etc/nginx/nginx.conf
+          name: cm-ui
+          subPath: nginx.conf
+        # Mount from Custom
+        - mountPath: /var/log/nginx/
+          name: logs-dir
+        - mountPath: /tmp/nginx/
+          name: run-dir
+      volumes:
+      # Volumes CM
+      - name: cm-ui
+        configMap:
+          name: ssd-ui
+          defaultMode: 256
+          items:
+          - key: nginx.conf
+            path: nginx.conf
+      # Volumes Custom
+      - name: logs-dir
+        emptyDir:
+          sizeLimit: 100Mi
+      - name: run-dir
+        emptyDir:
+          sizeLimit: 10Mi
+      # End of Volumes
+      ## podSpec
+      securityContext:
+        fsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault

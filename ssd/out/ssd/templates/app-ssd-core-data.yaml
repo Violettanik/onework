@@ -1,0 +1,174 @@
+---
+# Source: ssd/templates/app-ssd-core-data.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: ssd-core-data
+  namespace: onework2
+  labels:
+    helm.sh/chart: ssd-3.3.0
+    env: dev
+    app.kubernetes.io/name: ssd
+    app.kubernetes.io/instance: ssd-core
+    app.kubernetes.io/version: "1.16.x"
+    app.kubernetes.io/managed-by: Helm
+    app: core-data
+spec:
+  ports:
+  - name: http
+    port: 28888
+    targetPort: 28888
+  selector:
+    env: dev
+    app.kubernetes.io/name: ssd
+    app: core-data
+---
+# Source: ssd/templates/app-ssd-core-data.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ssd-core-data
+  namespace: onework2
+  labels:
+    helm.sh/chart: ssd-3.3.0
+    env: dev
+    app.kubernetes.io/name: ssd
+    app.kubernetes.io/instance: ssd-core
+    app.kubernetes.io/version: "1.16.x"
+    app.kubernetes.io/managed-by: Helm
+    app: core-data
+spec:
+  replicas: 1
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels:
+      env: dev
+      app.kubernetes.io/name: ssd
+      app: core-data
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: "25%"
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        env: dev
+        app.kubernetes.io/name: ssd
+        app: core-data
+    spec:
+      automountServiceAccountToken: false
+      containers:
+      - name: core-data
+        image: 192.168.139.80:5000/ssd/ssd-core-data:1.13.0
+        imagePullPolicy: Always
+        env:
+        # ENV-vars
+        - name: SPRING_CONFIG_EXTRA_FILES
+          value: "/var/run/secrets/common.yml,/var/run/secrets/db.yml"
+        - name: SSD_CORE_DATA_ANCHOR_POST_PROCESSING_ENABLED
+          value: "true"
+        - name: SSD_CORE_DATA_INTEGRATION_PROCESSORS
+          value: "map[gisupr:sber.platform.ssdp.coredata.kafka.BaseRequestProcessor pao:sber.platform.ssdp.coredata.kafka.PaoRequestProcessor]"
+        - name: SSD_ENABLE_EVENT_PRODUCING
+          value: "true"
+        envFrom:
+        # ENV-vars from CM
+        - configMapRef:
+            name: ssd-common
+        ports:
+        - containerPort: 28888
+          name: http
+        # Probes
+        livenessProbe:
+          failureThreshold: 10
+          httpGet:
+            path: /health
+            port: 28888
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          successThreshold: 1
+          timeoutSeconds: 2
+        startupProbe:
+          failureThreshold: 60
+          httpGet:
+            path: /health
+            port: 28888
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          successThreshold: 1
+          timeoutSeconds: 2
+        readinessProbe:
+          failureThreshold: 2
+          httpGet:
+            path: /health
+            port: 28888
+          periodSeconds: 10
+          successThreshold: 1
+          timeoutSeconds: 2
+        # Resources
+        resources:
+          limits:
+            cpu: 2000m
+            memory: 2000Mi
+          requests:
+            cpu: 2000m
+            memory: 2000Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            add: []
+            drop:
+            - all
+          privileged: false
+          readOnlyRootFilesystem: false
+          runAsGroup: 10001
+          runAsNonRoot: true
+          runAsUser: 10001
+          seccompProfile:
+            type: RuntimeDefault
+        # Volumes
+        volumeMounts:
+        # Mount from Secrets
+        - mountPath: /var/run/secrets/db.yml
+          name: secret-common-db-props
+          readOnly: true
+          subPath: secret-props.yml
+        - mountPath: /var/run/secrets/common.yml
+          name: secret-common-props
+          readOnly: true
+          subPath: secret-props.yml
+        # Mount from Custom
+        - mountPath: /var/log/ssd-v2/
+          name: logs-dir
+        - mountPath: /tmp
+          name: web-server-tmp
+      volumes:
+      # Volumes Secrets
+      - name: secret-common-db-props
+        secret:
+          secretName: ssd-common-db-props
+          defaultMode: 256
+          items:
+          - key: secret-props.yml
+            path: secret-props.yml
+      - name: secret-common-props
+        secret:
+          secretName: ssd-common-props
+          defaultMode: 256
+          items:
+          - key: secret-props.yml
+            path: secret-props.yml
+      # Volumes Custom
+      - name: logs-dir
+        emptyDir:
+          sizeLimit: 100Mi
+      - name: web-server-tmp
+        emptyDir:
+          sizeLimit: 100Mi
+      # End of Volumes
+      ## podSpec
+      securityContext:
+        fsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault

@@ -1,0 +1,17 @@
+{{- $context := . }}
+
+{{- with .Values.ssdProxyWs }}
+{{- if and .enable .ingress.enable }}{{- range $host := .ingress.hosts }}
+  {{- range .paths }}
+#  http://{{ $host.host }}{{ .path }}
+  {{- end }}
+{{- end }}{{- end }}
+{{- end }}
+
+{{- with .Values.ssdCloudConfig }}
+{{- if and .enable .ingress.enable }}{{- range $host := .ingress.hosts }}
+  {{- range .paths }}
+#  http://{{ $host.host }}{{ .path }}
+  {{- end }}
+{{- end }}{{- end }}
+{{- end }}

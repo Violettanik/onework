@@ -1,0 +1,135 @@
+---
+# Source: ssd/templates/cm/ssd-ui.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ssd-ui
+  namespace: onework2
+  labels:
+    env: dev
+    app.kubernetes.io/name: ssd
+data:
+  parent-menu-items.json: |
+    [
+    ]
+    
+  nginx.conf: |
+    worker_processes  5;
+    error_log   /var/log/ssd-v2/ssd-ui/error.log notice;
+    pid        /tmp/nginx/nginx.pid;
+    worker_rlimit_nofile 8192;
+
+    events {
+      worker_connections  4096;
+    }
+
+    http {
+      include  /etc/nginx/mime.types;
+      index    index.html;
+
+      default_type application/octet-stream;
+      log_format   main '$remote_addr - $remote_user [$time_local]  $status '
+        '"$request" $body_bytes_sent "$http_referer" '
+        '"$http_user_agent" "$http_x_forwarded_for"';
+      sendfile     on;
+      tcp_nopush   on;
+      
+      client_body_temp_path /tmp/nginx/nginx-client-body;
+      proxy_temp_path       /tmp/nginx/nginx-proxy;
+      fastcgi_temp_path     /tmp/nginx/nginx-fastcgi;
+      uwsgi_temp_path       /tmp/nginx/nginx-uwsgi;
+      scgi_temp_path        /tmp/nginx/nginx-scgi;
+      
+      # sets value to `*` if not present:
+      # default is *, but if any value exists already,
+      # the new header will have and empty value, as a result will not be set
+      map $upstream_http_access_control_allow_origin $add_wildcard_cors_if_not_exists {
+        default '*';
+        '~.' "";
+      }
+
+      server { # UI
+        listen       3000;
+        server_name  ssd-ui;
+        access_log  /var/log/ssd-v2/ssd-ui/access.log main;
+        root    /etc/nginx/html;
+        gzip on;
+        gzip_types application/json;
+        large_client_header_buffers 4 64k;
+        
+        error_page 404 = /;
+        
+        location / {
+          expires 30d;
+          autoindex on;
+        }
+
+        location ~ ^/(index.html|favicon.svg) {
+          if_modified_since off;
+          add_header Last-Modified "";
+          add_header Cache-Control no-cache;
+        }
+
+        location  ~ ^/(js|css|images|fonts|mf)/ {
+          gzip_static on;
+          if_modified_since off;
+          add_header Last-Modified "";
+          add_header Cache-Control "public, max-age=31536000";
+        }
+    
+        location = /mf/sidemenu/sidemenu.config.json {
+          if_modified_since off;
+          gzip_static on;
+          add_header Last-Modified "";
+          add_header Cache-Control no-cache;
+        }
+
+        location ~ ^/?(parentMenuItems.json|childrenMenuItems.json|parent-menu-items.json) {
+          if_modified_since off;
+          add_header Last-Modified "";
+          add_header Cache-Control no-cache;
+        }
+
+        location ~ ^/?(.*\.ttf|.*\.eot|.*\.woff2|.*\.woff) {
+          add_header 'Access-Control-Allow-Origin' $add_wildcard_cors_if_not_exists;
+        }
+
+        location = /health {
+            access_log off;
+            add_header Content-Type application/json;
+            return 200 "{\"status\":\"pass\",\"releaseId\":\"1.17\",\"version\":\"1\",\"serviceId\":\"$hostname\",\"description\":\"health of ssd-ui\"}";
+        }
+      }
+    }
+
+  logrotate.conf: | 
+    /var/log/ssd-v2/ssd-ui/access.log {
+      rotate 5
+      size 10M
+      missingok
+      copytruncate
+      nocreate
+      nodelaycompress
+      nomail
+      notifempty
+      noolddir
+      compress
+      postrotate
+            echo "Log /var/log/ssd-v2/ssd-ui/access.log was logrotated" && nginx -s reload
+      endscript
+    } 
+    /var/log/ssd-v2/ssd-ui/error.log {
+      rotate 5
+      size 10M
+      missingok
+      copytruncate
+      nocreate
+      nodelaycompress
+      nomail
+      notifempty
+      noolddir
+      compress
+      postrotate
+            echo "Log /var/log/ssd-v2/ssd-ui/error.log was logrotated" && nginx -s reload
+      endscript
+    }

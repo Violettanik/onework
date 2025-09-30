@@ -1,0 +1,559 @@
+# helm template ssd-router package/conf/helm/application/ssd/ -n onework --output-dir out -f package/conf/helm/application/ssd/app-groups/ssd-router.yaml -f package/conf/helm/application/ssd/app-groups/_secrets-ssd-router.yaml
+# kubectl apply -f out/ssd/templates/secrets/ -n onework
+# helm upgrade --install ssd-router package/conf/helm/application/ssd/ -n onework -f package/conf/helm/application/ssd/app-groups/ssd-router.yaml
+
+createSecrets: false
+#envName: __target_env_name__
+envName: dev
+fullnameOverride: ssd
+logbackConfig:
+  create: false
+#imagePullSecrets:
+#  - name: __docker_image_pull_secret__
+
+### Router
+
+ssdProxyWs:
+  enable: true
+  image:
+#    pullPolicy: IfNotPresent
+    pullPolicy: Always
+    #repository: __image_registry_prefix__/ssd-proxy-ws
+    repository: 192.168.139.80:5000/ssd/ssd-proxy-ws
+    #tag: __image_tag_ssd_proxy__
+    tag: 1.13.0
+  envFromConfigmap:
+    - common
+  env:
+    SSD_PROXY_KC_CLIENT: onework-login
+    SSD_PROXY_REDIRECTS_PREFIX: /ssd
+    DEFAULT_OK_REDIRECT_URL: /ssd/
+    SESSION_AUTH_CACHE_EXPIRATION_SECONDS: "36000"
+    ONEWORK_SESSION_COOKIE_SAME_SITE: None
+    IAM_JWT_TOKEN_PREFIX: Bearer
+    ONEWORK_JWT_TOKEN_PREFIX: Bearer
+    SESSION_AUTH_REFRESH_VALIDITY_EXPIRATION_SECONDS: 180
+    SESSION_AUTH_ACCESS_REFRESH_DELTA_SECONDS: 120
+#    SSD_PROXY_TOKEN_ENCRYPTOR_ENABLED: true
+    SSD_PROXY_TOKEN_ENCRYPTOR_ENABLED: false
+#    SSD_PROXY_SESSION_ENCRYPTOR_ENABLED: true
+    SSD_PROXY_SESSION_ENCRYPTOR_ENABLED: false
+    # curl https://works-domain.ru/auth/realms/realm-name/ ; get realm "public_key" value
+    #JWT_VERIFICATION_PUB_KEY: '__JWT_VERIFICATION_PUB_KEY__'
+    JWT_VERIFICATION_PUB_KEY: 'MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAwrl95kAoREGFC5FC7dEyEsMzpduGLPevWW5A1M3TOlUSBZ8tVP3YJE/YQuB6el51k1stj5poUaHan26/8zW1gCbiZUnZjPQyjecqYbWPp4dKQQgmzN8tB4oWKAqFv5xg5EA+hOhs+upNxIwWjchQWSopBN3+cN2Y5DwFeeWRGzMmxQIwmUgVIPiVpIgUwyVSGoICer/nOONJletszhA9PzXY1en5tjXHNT78M68WYvR0YR0wO2sNl/FaT/WwTxPxcI/amdCEn+2g+cUiUgvzCah/l10h/czx9HuNPvZD6N059BGFNVyJWOL40VpAHQ1ABx4i0U6FVCy/w8nmSSPuWQIDAQAB'
+    SSD_PROXY_SECRETS_JSON_FILE_PATH: '/var/run/secrets/secrets.json'
+    SSD_PROXY_TARGET_LOG_FILE: /var/log/ssd-v2/ssd-proxy-ws/error.log
+    #LOG_ROTATION_CONF_FILE: /usr/local/openresty/logrotate/ssd-proxy-ws.conf
+    #LOG_ROTATION_PERIOD_SECONDS: 3600
+    IAM_JWT_TARGET_HEADER_NAME: Authorization
+  volFromSecret:
+    proxy-ws:
+      - path: /var/run/secrets/secrets.json
+        subPath: configuration.json
+        readOnly: true
+  volFromCustom:
+    logs-dir:
+      mounts:
+        - mountPath: /var/log/ssd-v2/ssd-proxy-ws/
+      volSpec:
+        emptyDir:
+          sizeLimit: 100Mi
+    run-dir:
+      mounts:
+        - mountPath: /tmp/openresty/
+      volSpec:
+        emptyDir:
+          sizeLimit: 300Mi
+  securityContext:
+#    readOnlyRootFilesystem: true
+    readOnlyRootFilesystem: false
+    runAsUser: 10001
+    runAsGroup: 10001
+    runAsNonRoot: true
+    privileged: false
+    allowPrivilegeEscalation: false
+    capabilities:
+      add: []
+      drop:
+        - all
+    seccompProfile:
+      type: RuntimeDefault
+  podSpec:
+    securityContext:
+      fsGroup: 10001
+      seccompProfile:
+        type: RuntimeDefault
+  ## Resources
+  resources:
+    requests:
+      cpu: 1000m
+      memory: 300Mi
+    limits:
+      cpu: 1000m
+      memory: 300Mi
+  service:
+    enable: true
+    ports:
+      3001: http
+  ingress:
+    enable: true
+    annotations:
+      nginx.ingress.kubernetes.io/proxy-buffer-size: 256k
+      nginx.ingress.kubernetes.io/proxy-body-size: 1g
+      nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+      nginx.ingress.kubernetes.io/backend-protocol: "HTTP"
+    className: nginx
+    hosts:
+      - host: onework.voda.ru
+        paths:
+          - path: /ssd
+            pathType: Prefix
+            port: 3001
+          - path: /host # IF MFE IS ENABLED
+            pathType: Prefix
+            port: 3001
+    tls:
+      - hosts:
+        - onework.voda.ru
+        secretName: onework-tls
+  # HAPROXY INGRESS
+  #    annotations:
+  #      kubernetes.io/ingress.class: haproxy
+  #    hosts:
+  #    - host: ssd.__ingress_external_url__
+  #      paths:
+  #      - path: /
+  #        pathType: Prefix
+  #        port: 3001
+  routes:
+    auth:
+      login_script: /opt/ssd-proxy-service/src/iam/do_auth_in_kecycloak_v3.lua
+      logout_script: /opt/ssd-proxy-service/src/iam/invalidate_session_v3.lua
+      auth_block: ""
+      auth_block_with_basic: ""
+      auth_block_nexus_repo: ""
+      auth_block_jenkins: ""
+      auth_block_dpm: ""
+      auth_block_sonar: ""
+      auth_block_1w: |
+        access_by_lua_block { if ngx.var['cookie_CONVEYOR_LOGOUT'] == 'true' then ngx.header["Set-Cookie"] = "CONVEYOR_LOGOUT=;Path=/ssd; expires=Thu, 01 Jan 1970 00:00:00 GMT; Max-Age=0;"; return ngx.redirect('https://proxy.voda.ru/openid-connect-auth/logout'); end loadfile('/opt/ssd-proxy-service/src/privileges/assign_request_permissions.lua')(); }
+                        proxy_set_header Authorization $http_authorization;
+                        proxy_set_header Cookie $http_cookie;
+      #auth_block_with_basic: |
+      #  access_by_lua_block { if ngx.var['cookie_CONVEYOR_LOGOUT'] == 'true' then ngx.header["Set-Cookie"] = "CONVEYOR_LOGOUT=;Path=/ssd; expires=Thu, 01 Jan 1970 00:00:00 GMT; Max-Age=0;"; return ngx.re$
+      #                  proxy_set_header Authorization $http_authorization;
+      #                  proxy_set_header Cookie $http_cookie;
+    deploymentExternalUrl: onework.voda.ru
+    forbiddenPathsRegex: '/ssd/ssd-(role-manager|core-data|transaction-manager|ui-admin)/actuator(/|$)(.*)'
+    ssd:
+      tmRoot: http://ssd-transaction-manager:28887/
+      rmRoot:  http://ssd-role-manager:28885/
+      coreDataRoot:  http://ssd-core-data:28888/
+      uiAdminRoot: http://ssd-ui-admin:28886/
+      sideMenuBackendRoot: http://ssd-side-menu-backend:28892/
+      cloudAdminRoot: http://ssd-cloud-admin:58080/ssd/ssd-cloud-admin
+      uiRoot: http://ssd-mfe-platform:3000/
+    mfe:
+      enable: true
+      externalRoot: /ssd/host
+      rootUrl: http://ssd-mfe-platform:3000
+      ssdUiRoute: /ssd/external/ow
+      ssdUiTarget: http://ssd-ui:3000
+      remoteRoutes: |
+        add_header Content-Type application/json;
+        return 200 '[
+              {
+                "path": "/ssd/*",
+                "id": "ow",
+                "name": "OW",
+                "options": {
+                  "name": "ow_export_app",
+                  "url": "/ssd/external/ow/mf-manifest.json"
+                }
+              }
+            ]';
+      commonMf: |
+        add_header Content-Type application/json;
+        return 200 '[]';
+      dashboardLayouts: |
+        add_header Content-Type application/json;
+        return 200 '[]';
+    track:
+      url: http://localhost/gitlab
+    sonar:
+      url: http://localhost/ssd/tools/sonar
+      bodySizeLimit: 100M
+    dpm:
+      #base: http://dpm.localhost
+      base: http://localhost
+      #api: http://dpm.localhost/dpm/api
+      #front: http://dpm-frontend.localhost
+      #auth: http://dpm-auth.localhost
+      api: http://localhost
+      front: http://localhost
+      auth: http://localhost
+
+    jenkins:
+      - type: jenkins-ci
+        url: http://localhost/ssd/tools/jenkins-ci
+        bodySizeLimit: 10M
+      - type: jenkins-cd
+        url: http://localhost/ssd/tools/jenkins-cd
+        bodySizeLimit: 10M
+    nexus:
+      - type: nexus-ci
+        url: http://localhost/ssd/tools/nexus-ci
+      - type: nexus-cd
+        url: http://localhost/ssd/tools/nexus-cd
+    sourceControl:
+      - type: sc-ci
+        url: https://localhost/sc-cd
+      - type: sc-cd
+        url: https://localhost/sc-cd
+    fose:
+      front: http://localhost/ssd/tools/fose
+      back: http://localhost/ssd/tools/fose
+      proxy: http://localhost/ssd/tools/fose
+    view:
+      url: http://localhost/ssd/tools/viewwork
+    mock: http://localhost/mock
+    pact: http://localhost/pact
+    load:
+      front: http://localhost/ssd/tools/loadtest
+      back: http://localhost/ssd/tools/loadtest/back
+      launcher: http://localhost/ssd/tools/loadtest/launcher
+      pusher: http://localhost/ssd/tools/loadtest/pusher
+    jazz:
+      token:
+        #endpoint: http://ssd-adapter-jazz:28812/accessToken
+        endpoint: http://localhost
+    customRoutes: | # секция для добавления специфичных для развертывания роутов
+      #location /ssd/tools/newtool {
+      #    access_by_lua_block { loadfile('/opt/ssd-proxy-service/src/iam/assign_auth_header_v3.lua')(); }
+      #    proxy_pass http://tool.tool.svc.cluster.local/ssd/tools/newtool;
+      #}
+      location = /ssd/ssd-ui-admin/v2/logout {
+          access_by_lua_block {
+              if ngx.var['cookie_CONVEYOR_LOGOUT'] ~= 'true' then
+                  ngx.header["Set-Cookie"] = "CONVEYOR_LOGOUT=true;Path=/ssd;HttpOnly=true;Secure=true;SameSite=LaX;Max-Age=1d"
+              end
+              ngx.status = 200
+              ngx.say('{ "httpStatusWrap": { "value": 200, "reasonPhrase": "OK", "error": false }, "serviceResponseError": null,  "returned": "true" }')
+              ngx.header.content_type = 'application/JSON';
+              ngx.exit(200);
+          }
+      }
+    
+
+ssdUi:
+  enable: true
+  image:
+    #pullPolicy: IfNotPresent
+    pullPolicy: Always
+    #repository: __image_registry_prefix__/ssd-ui
+    repository: 192.168.139.80:5000/ssd/ssd-ui
+    #tag: __image_tag_ssd_ui__
+    tag: 1.13.0
+  envFromConfigmap:
+    - common
+  env:
+    NGINX_UI_SERVER_NAME: ssd-ui
+    NGINX_WORKER_PROCESSES: 5
+    NGINX_WORKER_CONNECTIONS: 4096
+    NGINX_WORKER_RLIMIT_NOFILE: 8192
+    NGINX_LARGE_CLIENT_HEADER_BUFFER_CONFIG: '4 64k'
+    #LOG_ROTATION_CONF_FILE: /usr/local/openresty/logrotate/ssd-proxy-ws.conf
+    #LOG_ROTATION_PERIOD_SECONDS: 3600
+  securityContext:
+#    readOnlyRootFilesystem: true
+    readOnlyRootFilesystem: false
+    runAsUser: 10001
+    runAsGroup: 10001
+    runAsNonRoot: true
+    privileged: false
+    allowPrivilegeEscalation: false
+    capabilities:
+      add: []
+      drop:
+        - all
+    seccompProfile:
+      type: RuntimeDefault
+  podSpec:
+    securityContext:
+      fsGroup: 10001
+      seccompProfile:
+        type: RuntimeDefault
+  volFromCustom:
+    logs-dir:
+      mounts:
+        - mountPath: /var/log/nginx/
+      volSpec:
+        emptyDir:
+          sizeLimit: 100Mi
+    run-dir:
+      mounts:
+        - mountPath: /tmp/nginx/
+      volSpec:
+        emptyDir:
+          sizeLimit: 10Mi
+  ## Resources
+  resources:
+    requests:
+      cpu: 100m
+      memory: 100Mi
+    limits:
+      cpu: 500m
+      memory: 200Mi
+  service:
+    enable: true
+    ports:
+      3000: http
+  ingress:
+    enable: true
+    className: nginx
+    hosts:
+      - host: onework.voda.ru
+        paths:
+          - path: /ssd/external/ow
+            pathType: Prefix
+            port: 3000
+    tls:
+      - hosts:
+        - onework.voda.ru
+        secretName: onework-tls
+  volFromConfigmap:
+    ui:
+      - path: /etc/nginx/nginx.conf
+        subPath: nginx.conf
+# Переопределять скелет бокового меню имеет смысл в случае
+# необходимости удалить из него инструменты, не присутствующие в инсталляции
+#      - path: /etc/nginx/html/parent-menu-items.json
+#        subPath: parent-menu-items.json
+#      - path: /etc/nginx/logrotate/ssd-ui.conf
+#        subPath: parent-menu-items.json
+#  menuStructureOverride: |
+#    [
+#      {
+#        "key": "projectInfo",
+#        "label": "Дашборд",
+#        "icon": "ProjectOutlined",
+#        "tool": {
+#          "key": "ssd"
+#        }
+#      },
+#      {
+#        "key": "gitlab",
+#        "label": "Управление разработкой",
+#        "icon": "CompassOutlined",
+#        "expandable": true,
+#        "tool": {
+#          "key": "track"
+#        }
+#      },
+#      {
+#        "key": "dependencies",
+#        "label": "Артефакты и зависимости",
+#        "icon": "PartitionOutlined",
+#        "children": [
+#          {
+#            "key": "dependencies_ci",
+#            "label": "Сборка",
+#            "expandable": true,
+#            "tool": {
+#              "key": "nci"
+#            }
+#          },
+#          {
+#            "key": "deployment",
+#            "label": "Развертывание",
+#            "expandable": true,
+#            "tool": {
+#              "key": "ncd"
+#            }
+#          }
+#        ]
+#      },
+#      {
+#        "key": "continuousIntegration",
+#        "label": "Конвейер",
+#        "icon": "CiCircleOutlined",
+#        "children": [
+#          {
+#            "key": "continuousIntegration__Сборка",
+#            "label": "Сборка",
+#            "expandable": true,
+#            "tool": {
+#              "key": "jci"
+#            }
+#          },
+#          {
+#            "key": "continuousIntegration__Поставка",
+#            "label": "Поставка",
+#            "expandable": true,
+#            "tool": {
+#              "key": "dpm"
+#            }
+#          },
+#          {
+#            "key": "continuousIntegration__Развертывание",
+#            "label": "Развертывание",
+#            "expandable": true,
+#            "tool": {
+#              "key": "jcd"
+#            }
+#          }
+#        ]
+#      },
+#      {
+#        "key": "staticAnalysis",
+#        "label": "Статический анализ",
+#        "icon": "CodeOutlined",
+#        "expandable": true,
+#        "tool": {
+#          "key": "snr"
+#        }
+#      },
+#      {
+#        "key": "testLoad",
+#        "label": "Нагрузочное тестирование",
+#        "icon": "DatabaseOutlined",
+#        "expandable": true,
+#        "tool": {
+#          "key": "loa"
+#        }
+#      },
+#      {
+#        "key": "processMetrics",
+#        "label": "Метрики процесса",
+#        "icon": "BarChartOutlined",
+#        "expandable": true,
+#        "tool": {
+#          "key": "view"
+#        }
+#      },
+#      {
+#        "key": "dependencyTrack",
+#        "label": "Анализ зависимостей",
+#        "icon": "PieChartOutlined",
+#        "expandable": true,
+#        "tool": {
+#          "key": "dpt"
+#        }
+#      },
+#      {
+#        "key": "settings",
+#        "label": "Настройки и доступы",
+#        "icon": "SettingOutlined",
+#        "tool": {
+#          "key": "ssd/settings"
+#        }
+#      },
+#      {
+#        "key": "room",
+#        "label": "Переговорная",
+#        "icon": "Room",
+#        "tool": {
+#          "key": "ssd/room"
+#        }
+#      }
+#    ]
+
+ssdMfeHost:
+  appName: mfe-platform
+  enable: true
+  image:
+    #pullPolicy: IfNotPresent
+    pullPolicy: Always
+    #repository: __image_registry_prefix__/ssd-host-app-ui
+    repository: 192.168.139.80:5000/ssd/ssd-host-app-ui
+    #tag: __image_tag_ssd_host_ui__
+    tag: 1.13.0
+  envFromConfigmap:
+    - common
+  env:
+    NGINX_UI_SERVER_NAME: ssd-mfe-platform
+    SSD_LAUNCH_USER: ssd
+    NGINX_WORKER_PROCESSES: 5
+    NGINX_WORKER_CONNECTIONS: 4096
+    NGINX_WORKER_RLIMIT_NOFILE: 8192
+    NGINX_LARGE_CLIENT_HEADER_BUFFER_CONFIG: '4 32k'
+    #LOG_ROTATION_CONF_FILE: /usr/local/openresty/logrotate/ssd-proxy-ws.conf
+    #LOG_ROTATION_PERIOD_SECONDS: 3600
+  securityContext:
+#    readOnlyRootFilesystem: true
+    readOnlyRootFilesystem: false
+    runAsUser: 10001
+    runAsGroup: 10001
+    runAsNonRoot: true
+    privileged: false
+    allowPrivilegeEscalation: false
+    capabilities:
+      add: []
+      drop:
+        - all
+    seccompProfile:
+      type: RuntimeDefault
+  podSpec:
+    securityContext:
+      fsGroup: 10001
+      seccompProfile:
+        type: RuntimeDefault
+  volFromCustom:
+    logs-dir:
+      mounts:
+        - mountPath: /var/log/ssd-v2/ssd-mfe-platform
+      volSpec:
+        emptyDir:
+          sizeLimit: 100Mi
+    logs-dir2:
+      mounts:
+        - mountPath: /var/log/nginx/
+      volSpec:
+        emptyDir:
+          sizeLimit: 100Mi
+    run-dir:
+      mounts:
+        - mountPath: /tmp/nginx/
+      volSpec:
+        emptyDir:
+          sizeLimit: 10Mi
+  ## Resources
+  resources:
+    requests:
+      cpu: 500m
+      memory: 200Mi
+    limits:
+      cpu: 500m
+      memory: 200Mi
+  service:
+    enable: true
+    ports:
+      3000: http
+  ingress:
+    enable: true
+    className: nginx
+    hosts:
+      - host: onework.voda.ru
+        paths:
+          - path: /ssd/host
+            pathType: Prefix
+            port: 3000
+    tls:
+      - hosts:
+        - onework.voda.ru
+        secretName: onework-tls
+  volFromConfigmap:
+    mfe-platform:
+      - path: /etc/nginx/nginx.conf
+        subPath: nginx.conf
+      - path: /etc/nginx/logrotate/ssd-mfe-platform.conf
+        subPath: logrotate.conf
+  config:
+    logs:
+      formatBlock: |
+        log_format  main  '$remote_addr - $remote_user [$time_local] [$request_id] "$request" '
+                  '$status $body_bytes_sent "$http_referer" '
+                  '"$http_user_agent" "$http_x_forwarded_for"';
+      accessMode: main
+      errorMode: notice
+      rootFolder: /var/log/ssd-v2/ssd-mfe-platform

@@ -1,0 +1,48 @@
+---
+# Source: ssd/templates/cm/ssd-common.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ssd-common
+  namespace: onework2
+  labels:
+    helm.sh/chart: ssd-3.3.0
+    env: dev
+    app.kubernetes.io/name: ssd
+    app.kubernetes.io/instance: ssd-infra
+    app.kubernetes.io/version: "1.16.x"
+    app.kubernetes.io/managed-by: Helm
+data:
+  ONEWORK_SESSION_COOKIE_NAME: "ONEWORK_SESSION"
+  SSD_APPLICATION_CONFIG_SERVER_INTERNAL_URL: "http://ssd-cloud-config:8888"
+  SSD_APPLICATION_CONFIG_SERVER_REQUEST_PROPS: "?fail-fast=true&max-attempts=100&initial-interval=1000"
+  SSD_APPLICATION_DISCOVERY_SERVER_ROOT_INTERNAL_URL: "http://ssd-cloud-discovery:8761"
+  SSD_APPLICATION_NAME_SUFFIX: ""
+  SSD_AUTH_JWT_EXPIRATION_VERIFIACTION_ENABLED: "false"
+  SSD_AUTH_JWT_PUBLIC_KEY: "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAwrl95kAoREGFC5FC7dEyEsMzpduGLPevWW5A1M3TOlUSBZ8tVP3YJE/YQuB6el51k1stj5poUaHan26/8zW1gCbiZUnZjPQyjecqYbWPp4dKQQgmzN8tB4oWKAqFv5xg5EA+hOhs+upNxIwWjchQWSopBN3+cN2Y5DwFeeWRGzMmxQIwmUgVIPiVpIgUwyVSGoICer/nOONJletszhA9PzXY1en5tjXHNT78M68WYvR0YR0wO2sNl/FaT/WwTxPxcI/amdCEn+2g+cUiUgvzCah/l10h/czx9HuNPvZD6N059BGFNVyJWOL40VpAHQ1ABx4i0U6FVCy/w8nmSSPuWQIDAQAB"
+  SSD_AUTH_JWT_TARGET_ALG: "RS256"
+  SSD_AUTH_JWT_VERIFIACTION_ENABLED: "true"
+  SSD_CLOUD_ADMIN_CLIENT_ROOT_URL: "http://ssd-proxy-ws:3001/ssd/ssd-cloud-admin"
+  SSD_CORE_DATA_ROOT_URL: "http://ssd-core-data:28888"
+  SSD_DB_CORE_SERVICES_POOL_SIZE: "5"
+  SSD_DB_HOST: "192.168.139.80"
+  SSD_DB_NAME: "ssd"
+  SSD_DB_PORT: "5432"
+  SSD_DEPLOYMENT_ENV: "dev"
+  SSD_DEPLOYMENT_PROFILE: "k8s"
+  SSD_IAM_PROXY_CONTEXT_PREFIX: "/ssd"
+  SSD_IAM_PROXY_EXTERNAL_ROOT: "https://onework.voda.ru/ssd"
+  SSD_IAM_PROXY_INTERNAL_ROOT: "http://ssd-proxy-ws:3001/ssd"
+  SSD_KAFKA_EVENTS_TOPIC: "ssd-events"
+  SSD_KAFKA_GATEWAY_KAFKA_SERVERS: "192.168.139.80:9092"
+  SSD_KAFKA_INTERNAL_TOPIC_RM_EVENTS: "ssd-internal-rm-events"
+  SSD_KAFKA_INTERNAL_TOPIC_RM_INPUT: "ssd-internal-rm-input"
+  SSD_KAFKA_INTERNAL_TOPIC_SA_INPUT: "ssd-internal-sa-input"
+  SSD_KAFKA_INTERNAL_TOPIC_SA_OUTPUT: "ssd-internal-sa-output"
+  SSD_LOGS_PROFILE: "default"
+  SSD_LOGS_ROOT: "/var/log/ssd-v2"
+  SSD_ROLE_MANAGER_KC_REALM: "Works"
+  SSD_ROLE_MANAGER_KC_URL: "https://keycloak.voda.ru:8443/"
+  SSD_ROLE_MANAGER_ROOT_URL: "http://ssd-role-manager.onework2.svc.cluster.local:28885"
+  SSD_SECURITY_PRIVILEGES_RESOLVING_MODE: "HEADER"
+  SSD_SECURITY_ROLES_RESOLVING_MODE: "HEADER"

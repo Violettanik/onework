@@ -1,0 +1,579 @@
+# helm template ssd-core package/conf/helm/application/ssd/ -n onework --output-dir out -f package/conf/helm/application/ssd/app-groups/ssd-core.yaml -f package/conf/helm/application/ssd/app-groups/_secrets-ssd.yaml
+# kubectl apply -f out/ssd/templates/secrets/ -n onework
+# helm upgrade --install ssd-core package/conf/helm/application/ssd/ -n onework -f package/conf/helm/application/ssd/app-groups/ssd-core.yaml
+
+createSecrets: false
+#envName: __target_env_name__
+envName: dev
+fullnameOverride: ssd
+logbackConfig:
+  create: false
+#imagePullSecrets:
+#  - name: __docker_image_pull_secret__
+
+ssdCoreData:
+  enable: true
+  image:
+    #pullPolicy: IfNotPresent
+    pullPolicy: Always
+    #repository: __image_registry_prefix__/ssd-core-data
+    repository: 192.168.139.80:5000/ssd/ssd-core-data
+    #tag: __image_tag_ssd_cd__
+    tag: 1.13.0
+  env:
+    SSD_ENABLE_EVENT_PRODUCING: true
+    SSD_CORE_DATA_INTEGRATION_PROCESSORS: {"gisupr": "sber.platform.ssdp.coredata.kafka.BaseRequestProcessor", "pao": "sber.platform.ssdp.coredata.kafka.PaoRequestProcessor"}
+    SPRING_CONFIG_EXTRA_FILES: '/var/run/secrets/common.yml,/var/run/secrets/db.yml'
+    SSD_CORE_DATA_ANCHOR_POST_PROCESSING_ENABLED: true
+  envFromConfigmap:
+    - common
+  volFromSecret:
+    common-db-props:
+      - path: /var/run/secrets/db.yml
+        subPath: secret-props.yml
+        readOnly: true
+    common-props:
+      - path: /var/run/secrets/common.yml
+        subPath: secret-props.yml
+        readOnly: true
+  volFromCustom:
+    logs-dir:
+      mounts:
+        - mountPath: /var/log/ssd-v2/
+      volSpec:
+        emptyDir:
+          sizeLimit: 100Mi
+    web-server-tmp:
+      mounts:
+        - mountPath: /tmp
+      volSpec:
+        emptyDir:
+          sizeLimit: 100Mi
+  securityContext:
+#    readOnlyRootFilesystem: true
+    readOnlyRootFilesystem: false
+    runAsUser: 10001
+    runAsGroup: 10001
+    runAsNonRoot: true
+    privileged: false
+    allowPrivilegeEscalation: false
+    capabilities:
+      add: []
+      drop:
+        - all
+    seccompProfile:
+      type: RuntimeDefault
+  podSpec:
+    securityContext:
+      fsGroup: 10001
+      seccompProfile:
+        type: RuntimeDefault
+  resources:
+    requests:
+      cpu: 2000m
+      memory: 2000Mi
+    limits:
+      cpu: 2000m
+      memory: 2000Mi
+  service:
+    enable: true
+    ports:
+      28888: http
+
+ssdRoleManager:
+  enable: true
+  image:
+    #pullPolicy: IfNotPresent
+    pullPolicy: Always
+    #repository: __image_registry_prefix__/ssd-role-manager
+    repository: 192.168.139.80:5000/ssd/ssd-role-manager
+    #tag: __image_tag_ssd_rm__
+    tag: 1.13.0
+  env:
+    SSD_ROLE_MANAGER_GROUP_PROCESSING_TOOL_KEYS: nci,ncd,jci,jcd
+    SSD_ENABLE_EVENT_PRODUCING: true
+    SSD_ROLE_MANAGER_KC_ROLE_SYNC_CRON: '-'
+    SSD_ROLE_MANAGER_KC_VISIBILITY_ATTRIBUTE: ssd.sync.visible
+    SSD_ROLE_MANAGER_KC_OBSOLETE_MODE: "false"
+    SSD_ROLE_MANAGER_KC_OBSOLETE_HTTP_CLIENT: NATIVE
+    SSD_ROLE_MANAGER_KC_OBSOLETE_SSL_ENABLED: false
+    SSD_RM_MASTER_SYSTEM_INTEGRATION_ENABLED: true
+    SSD_PASSWORD_RESET_LIFESPAN_HOURS: 24
+    #SSD_PASSWORD_RESET_REDIRECT_URI: 'https://__ingress_external_url__/ssd'
+    SSD_PASSWORD_RESET_REDIRECT_URI: 'https://onework.voda.ru/ssd'
+    SSD_EMAIL_VERFIFICATION_RESET_LIFESPAN_HOURS: 24
+    #SSD_EMAIL_VERFIFICATION_REDIRECT_URI: 'https://__ingress_external_url__/ssd'
+    SSD_EMAIL_VERFIFICATION_REDIRECT_URI: 'https://onework.voda.ru/ssd'
+    SPRING_CONFIG_EXTRA_FILES: '/var/run/secrets/common.yml,/var/run/secrets/db.yml,/var/run/secrets/rm.yml'
+    SSD_ROLE_MANAGER_USER_SKIP_ATTRIBUTES_UPDATE: false
+    SSD_ROLE_MANAGER_USER_INSTANT_PARSING_PATTERN: uuuuMMddHHmmssX
+    SSD_ROLE_MANAGER_ENABLE_KC_INTEGRATION: true # false - in case of non-Keycloak environment
+    SSD_ROLE_MANAGER_GLOBAL_ROLE_USERS_ID_WITH_ACCESS: "1,2,3" # список idшников пользователей из СУДИР, которым можно назначать глобальные роли
+  envFromConfigmap:
+    - common
+  volFromSecret:
+    common-db-props:
+      - path: /var/run/secrets/db.yml
+        subPath: secret-props.yml
+        readOnly: true
+    common-props:
+      - path: /var/run/secrets/common.yml
+        subPath: secret-props.yml
+        readOnly: true
+    role-manager-props:
+      - path: /var/run/secrets/rm.yml
+        subPath: secret-props.yml
+        readOnly: true
+  volFromCustom:
+    logs-dir:
+      mounts:
+        - mountPath: /var/log/ssd-v2/
+      volSpec:
+        emptyDir:
+          sizeLimit: 100Mi
+    web-server-tmp:
+      mounts:
+        - mountPath: /tmp
+      volSpec:
+        emptyDir:
+          sizeLimit: 100Mi
+  securityContext:
+#    readOnlyRootFilesystem: true
+    readOnlyRootFilesystem: false
+    runAsUser: 10001
+    runAsGroup: 10001
+    runAsNonRoot: true
+    privileged: false
+    allowPrivilegeEscalation: false
+    capabilities:
+      add: []
+      drop:
+        - all
+    seccompProfile:
+      type: RuntimeDefault
+  podSpec:
+    securityContext:
+      fsGroup: 10001
+      seccompProfile:
+        type: RuntimeDefault
+  ## Resources
+  resources:
+    requests:
+      cpu: 1000m
+      memory: 1500Mi
+    limits:
+      cpu: 1000m
+      memory: 1500Mi
+  service:
+    enable: true
+    ports:
+      28885: http
+ssdUiAdmin:
+  enable: true
+  image:
+    #pullPolicy: IfNotPresent
+    pullPolicy: Always
+    #repository: __image_registry_prefix__/ssd-ui-admin
+    repository: 192.168.139.80:5000/ssd/ssd-ui-admin
+    #tag: __image_tag_ssd_ui_admin__
+    tag: 1.13.0
+  env:
+    SSD_CLOUD_GATEWAY_ROOT_URL: http://ssd-cloud-gateway:8080
+    SPRING_CONFIG_EXTRA_FILES: '/var/run/secrets/common.yml,/var/run/secrets/db.yml'
+    # OPTIONAL
+    #SSD_UI_ADMIN_CONFIG_MODE: config
+    #SSD_UI_ADMIN_CONFIG_DOPS_URLS_ORG_PAGE: https://dops.portal/stub-org
+    #SSD_UI_ADMIN_CONFIG_DOPS_URLS_ORG_USERS_PAGE: https://dops.portal/stub-org-users
+    #SSD_UI_ADMIN_CONFIG_DOPS_URLS_PROJECT_USERS_PAGE: https://dops.portal/stub-project-users
+    #SSD_UI_ADMIN_CONFIG_JAZZ_ROOT: https://salutejazz.ru
+    #SSD_UI_ADMIN_CONFIG_UI_SHOW_TOOLS_PAGE: false
+    #SSD_UI_ADMIN_CONFIG_UI_SHOW_BILLING_LIMITS_PAGE: true
+    #SSD_UI_ADMIN_CONFIG_UI_SHOW_HELP_PAGE: true
+    #SSD_UI_ADMIN_CONFIG_UI_SHOW_ROLES_PAGE: true
+    #SSD_UI_ADMIN_CONFIG_UI_MODE_ORG_LIST_PAGE_HIDE_BUTTONS: true
+    #SSD_UI_ADMIN_CONFIG_UI_MODE_ORG_LIST_PAGE_HIDE_FULLNAME: true
+    #SSD_UI_ADMIN_CONFIG_UI_MODE_ORG_PAGE_HIDE_BUTTONS: true
+    #SSD_UI_ADMIN_CONFIG_UI_MODE_ORG_PAGE_HIDE_SPREADSHEET_DATA: true
+    #SSD_UI_ADMIN_CONFIG_UI_MODE_ORG_USER_ROLES_HIDE_BUTTONS: true
+    #SSD_UI_ADMIN_CONFIG_UI_MODE_ORG_USER_ROLES_HIDE_SPREADSHEET_DATA: true
+    #SSD_UI_ADMIN_CONFIG_UI_MODE_ORG_USER_ROLES_HIDE_FILTER: true
+    #SSD_UI_ADMIN_CONFIG_UI_MODE_PROJECT_USER_ROLES_HIDE_BUTTONS: true
+    #SSD_UI_ADMIN_CONFIG_UI_MODE_PROJECT_USER_ROLES_HIDE_SPREADSHEET_DATA: true
+    #SSD_UI_ADMIN_CONFIG_UI_MODE_PROJECT_USER_ROLES_HIDE_FILTER: true
+    #SSD_UI_ADMIN_CONFIG_UI_MODE_PROJECT_DASHBOARD_STUB: true
+    #SSD_UI_ADMIN_CONFIG_DEFAULT_LOGO: 'data:image/svg+xml,%3Csvg width="101" height="19" viewBox="0 0 101 19" xmlns="http://www.w3.org/2000/svg" %3E%3Cpath fill="%232d6eef" d="M93.0094 12.0627V9.24555C95. ...'
+    #SBERSPACE_SEARCH_ROOT_URL:
+  envFromConfigmap:
+    - common
+  volFromSecret:
+    common-db-props:
+      - path: /var/run/secrets/db.yml
+        subPath: secret-props.yml
+        readOnly: true
+    common-props:
+      - path: /var/run/secrets/common.yml
+        subPath: secret-props.yml
+        readOnly: true
+  volFromCustom:
+    logs-dir:
+      mounts:
+        - mountPath: /var/log/ssd-v2/
+      volSpec:
+        emptyDir:
+          sizeLimit: 100Mi
+    web-server-tmp:
+      mounts:
+        - mountPath: /tmp
+      volSpec:
+        emptyDir:
+          sizeLimit: 100Mi
+  securityContext:
+#    readOnlyRootFilesystem: true
+    readOnlyRootFilesystem: false
+    runAsUser: 10001
+    runAsGroup: 10001
+    runAsNonRoot: true
+    privileged: false
+    allowPrivilegeEscalation: false
+    capabilities:
+      add: []
+      drop:
+        - all
+    seccompProfile:
+      type: RuntimeDefault
+  podSpec:
+    securityContext:
+      fsGroup: 10001
+      seccompProfile:
+        type: RuntimeDefault
+  ## Resources
+  resources:
+    requests:
+      cpu: 1000m
+      memory: 1000Mi
+    limits:
+      cpu: 1000m
+      memory: 1000Mi
+  service:
+    enable: true
+    ports:
+      28886: http
+
+ssdEventProcessor:
+  enable: true
+  image:
+    pullPolicy: Always
+    #repository: __image_registry_prefix__/ssd-event-processor
+    repository: 192.168.139.80:5000/ssd/ssd-event-processor
+    #tag: __image_tag_ssd_event_processor__
+    tag: 1.13.0
+  env:
+    SSD_ENABLE_EVENT_PRODUCING: true
+    SPRING_CONFIG_EXTRA_FILES: '/var/run/secrets/common.yml,/var/run/secrets/db.yml'
+  envFromConfigmap:
+    - common
+  volFromSecret:
+    common-db-props:
+      - path: /var/run/secrets/db.yml
+        subPath: secret-props.yml
+        readOnly: true
+    common-props:
+      - path: /var/run/secrets/common.yml
+        subPath: secret-props.yml
+        readOnly: true
+  volFromCustom:
+    logs-dir:
+      mounts:
+        - mountPath: /var/log/ssd-v2/
+      volSpec:
+        emptyDir:
+          sizeLimit: 100Mi
+    web-server-tmp:
+      mounts:
+        - mountPath: /tmp
+      volSpec:
+        emptyDir:
+          sizeLimit: 100Mi
+  securityContext:
+#    readOnlyRootFilesystem: true
+    readOnlyRootFilesystem: false
+    runAsUser: 10001
+    runAsGroup: 10001
+    runAsNonRoot: true
+    privileged: false
+    allowPrivilegeEscalation: false
+    capabilities:
+      add: []
+      drop:
+        - all
+    seccompProfile:
+      type: RuntimeDefault
+  podSpec:
+    securityContext:
+      fsGroup: 10001
+      seccompProfile:
+        type: RuntimeDefault
+  ## Resources
+  resources:
+    requests:
+      cpu: 500m
+      memory: 500Mi
+    limits:
+      cpu: 500m
+      memory: 500Mi
+  service:
+    enable: true
+    ports:
+      28889: http
+
+ssdKafkaIntegrationAdapter:
+  enable: false
+  image:
+    pullPolicy: Always
+    #repository: __image_registry_prefix__/ssd-kafka-integration-adapter
+    repository: 192.168.139.80:5000/ssd/ssd-kafka-integration-adapter
+    #tag: __image_tag_ssd_kafka_integ_adapter__
+    tag: 1.13.0
+  env:
+    SPRING_CONFIG_EXTRA_FILES: '/var/run/secrets/common.yml,/var/run/secrets/db.yml'
+    SSD_KAFKA_INTEGRATION_INPUT_TOPIC: ssd-integration-in
+    SSD_KAFKA_INTEGRATION_OUTPUT_TOPIC: ssd-integration-out
+    #SSD_KAFKA_EXTERNAL_GATEWAY_KAFKA_SERVERS: 10.11.12.13:9092
+    #SSD_KAFKA_EXTERNAL_SECURITY_PROTOCOL: PLAINTEXT
+  envFromConfigmap:
+    - common
+  volFromSecret:
+    common-db-props:
+      - path: /var/run/secrets/db.yml
+        subPath: secret-props.yml
+        readOnly: true
+    common-props:
+      - path: /var/run/secrets/common.yml
+        subPath: secret-props.yml
+        readOnly: true
+  volFromCustom:
+    logs-dir:
+      mounts:
+        - mountPath: /var/log/ssd-v2/
+      volSpec:
+        emptyDir:
+          sizeLimit: 100Mi
+    web-server-tmp:
+      mounts:
+        - mountPath: /tmp
+      volSpec:
+        emptyDir:
+          sizeLimit: 100Mi
+  securityContext:
+#    readOnlyRootFilesystem: true
+    readOnlyRootFilesystem: false
+    runAsUser: 10001
+    runAsGroup: 10001
+    runAsNonRoot: true
+    privileged: false
+    allowPrivilegeEscalation: false
+    capabilities:
+      add: []
+      drop:
+        - all
+    seccompProfile:
+      type: RuntimeDefault
+  podSpec:
+    securityContext:
+      fsGroup: 10001
+      seccompProfile:
+        type: RuntimeDefault
+  ## Resources
+  resources:
+    requests:
+      cpu: 500m
+      memory: 500Mi
+    limits:
+      cpu: 750m
+      memory: 750Mi
+  service:
+    enable: true
+    ports:
+      28891: http
+
+ssdAiService:
+  enable: false
+  appName: ai-service
+  image:
+    pullPolicy: Always
+    #repository: __image_registry_prefix__/ssd-ai-service
+    repository: 192.168.139.80:5000/ssd/ssd-ai-service
+    #tag: __image_tag_ssd_ai_service__
+    tag: 1.13.0
+  env:
+    SPRING_CONFIG_EXTRA_FILES: '/var/run/secrets/common.yml,/var/run/secrets/ai-service.yml,/var/run/secrets/db.yml'
+    SSD_AI_SERVICE_STUB_GENERATION: true # false if GigaChat APIs are available
+    SSD_AI_SERVICE_MISC_REQUESTS_CONTROLLER_ENABLED: false
+  envFromConfigmap:
+    - common
+  volFromSecret:
+    common-props:
+      - path: /var/run/secrets/common.yml
+        subPath: secret-props.yml
+        readOnly: true
+    ai-service-props:
+      - path: /var/run/secrets/ai-service.yml
+        subPath: secret-props.yml
+        readOnly: true
+    common-db-props:
+      - path: /var/run/secrets/db.yml
+        subPath: secret-props.yml
+        readOnly: true
+  volFromCustom:
+    logs-dir:
+      mounts:
+        - mountPath: /var/log/ssd-v2/
+      volSpec:
+        emptyDir:
+          sizeLimit: 100Mi
+    web-server-tmp:
+      mounts:
+        - mountPath: /tmp
+      volSpec:
+        emptyDir:
+          sizeLimit: 100Mi
+  securityContext:
+#    readOnlyRootFilesystem: true
+    readOnlyRootFilesystem: false
+    runAsUser: 10001
+    runAsGroup: 10001
+    runAsNonRoot: true
+    privileged: false
+    allowPrivilegeEscalation: false
+    capabilities:
+      add: []
+      drop:
+        - all
+    seccompProfile:
+      type: RuntimeDefault
+  podSpec:
+    securityContext:
+      fsGroup: 10001
+      seccompProfile:
+        type: RuntimeDefault
+  resources:
+    requests:
+      cpu: 500m
+      memory: 500Mi
+    limits:
+      cpu: 750m
+      memory: 750Mi
+  service:
+    enable: true
+    ports:
+      28893: http
+
+ssdSideMenuBackend:
+  appName: side-menu-backend
+  enable: true
+  image:
+    pullPolicy: Always
+    #repository: __image_registry_prefix__/ssd-side-menu-backend
+    repository: 192.168.139.80:5000/ssd/ssd-side-menu-backend
+    #tag: __image_tag_ssd_side_menu_backend__
+    tag: 1.13.0
+  env:
+    SPRING_CONFIG_EXTRA_FILES: '/var/run/secrets/common.yml,/var/run/secrets/db.yml,/var/run/secrets/plugins-config.yml' # In case of startup overriding add '/var/run/secrets/menu-assets-override.json,/var/run/secrets/menu-assets-override.json'
+    SSD_SIDE_MENU_BACKEND_ANCHOR_POST_PROCESSING_ENABLED: true
+    #SSD_DB_LIQUIBASE_CHANGELOGFILE: 'file:///tmp/lb/database-change-log.xml' - в случае переопределения скриптов Liquibase при использовании Postgres выше 11 версии
+#  volFromConfigmap:
+#    lb-override:
+#      - path: /tmp/lb/database-change-log.xml
+#        subPath: side-menu-database-change-log.xml
+#      - path: /tmp/lb/lb-ssd-side-menu-svc-db-01.sql
+#        subPath: lb-ssd-side-menu-svc-db-01.sql
+#      - path: /tmp/lb/lb-ssd-side-menu-svc-db-02.sql
+#        subPath: lb-ssd-side-menu-svc-db-02.sql
+#      - path: /tmp/lb/lb-ssd-side-menu-svc-db-03.sql
+#        subPath: lb-ssd-side-menu-svc-db-03.sql
+#      - path: /tmp/lb/lb-ssd-side-menu-svc-db-04.sql
+#        subPath: lb-ssd-side-menu-svc-db-04.sql
+#      - path: /tmp/lb/lb-ssd-side-menu-svc-db-05.sql
+#        subPath: lb-ssd-side-menu-svc-db-05.sql
+#      - path: /tmp/lb/lb-ssd-side-menu-svc-db-06.sql
+#        subPath: lb-ssd-side-menu-svc-db-06.sql
+#      - path: /tmp/lb/lb-ssd-side-menu-svc-db-07.sql
+#        subPath: lb-ssd-side-menu-svc-db-07.sql
+#      - path: /tmp/lb/lb-ssd-side-menu-svc-db-08.sql
+#        subPath: lb-ssd-side-menu-svc-db-08.sql
+#      - path: /tmp/lb/lb-ssd-side-menu-svc-db-09.sql
+#        subPath: lb-ssd-side-menu-svc-db-09.sql
+#      - path: /tmp/lb/lb-ssd-side-menu-svc-db-10.sql
+#        subPath: lb-ssd-side-menu-svc-db-10.sql
+#      - path: /tmp/lb/lb-ssd-side-menu-svc-db-11.sql
+#        subPath: lb-ssd-side-menu-svc-db-11.sql
+#      - path: /tmp/lb/lb-ssd-side-menu-svc-db-12.sql
+#        subPath: lb-ssd-side-menu-svc-db-12.sql
+#      - path: /tmp/lb/lb-ssd-side-menu-svc-db-13.sql
+#        subPath: lb-ssd-side-menu-svc-db-13.sql
+  envFromConfigmap:
+    - common
+  volFromSecret:
+    common-db-props:
+      - path: /var/run/secrets/db.yml
+        subPath: secret-props.yml
+        readOnly: true
+    common-props:
+      - path: /var/run/secrets/common.yml
+        subPath: secret-props.yml
+        readOnly: true
+    side-menu-backend-files:
+      - path: /var/run/secrets/plugins-config.yml
+        subPath: plugins-config.yml
+        readOnly: true
+      # In case of startup overriding
+      #- path: /var/run/secrets/menu-configs-override.json
+      #  subPath: menu-configs-override.json
+      #  readOnly: true
+      #- path: /var/run/secrets/menu-assets-override.json
+      #  subPath: menu-assets-override.json
+      #  readOnly: true
+  volFromCustom:
+    logs-dir:
+      mounts:
+        - mountPath: /var/log/ssd-v2/
+      volSpec:
+        emptyDir:
+          sizeLimit: 100Mi
+    web-server-tmp:
+      mounts:
+        - mountPath: /tmp
+      volSpec:
+        emptyDir:
+          sizeLimit: 100Mi
+  securityContext:
+#    readOnlyRootFilesystem: true
+    readOnlyRootFilesystem: false
+    runAsUser: 10001
+    runAsGroup: 10001
+    runAsNonRoot: true
+    privileged: false
+    allowPrivilegeEscalation: false
+    capabilities:
+      add: []
+      drop:
+        - all
+    seccompProfile:
+      type: RuntimeDefault
+  podSpec:
+    securityContext:
+      fsGroup: 10001
+      seccompProfile:
+        type: RuntimeDefault
+  resources:
+    requests:
+      cpu: 500m
+      memory: 500Mi
+    limits:
+      cpu: 750m
+      memory: 750Mi
+  service:
+    enable: true
+    ports:
+      28892: http
+

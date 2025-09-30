@@ -1,0 +1,20 @@
+{{- $context := . }}
+  {{- $fullName := include "ssd.fullname" . }}
+  {{- $labels := include "ssd.labels" . }}
+  {{- $selectorLabels := include "ssd.selectorLabels" . }}
+  {{- with .Values.ssdRoleManager }}
+  {{- if and .enable .baseRoleModelOverride }}
+  {{- $app := .appName }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $fullName }}-{{ $app }}
+  namespace: {{ $context.Release.Namespace }}
+  labels:
+    {{- $selectorLabels | nindent 4 }}
+data:
+  base-role-model.json: |
+    {{- .baseRoleModelOverride | nindent 4 }}
+  {{- end }}
+{{- end }}

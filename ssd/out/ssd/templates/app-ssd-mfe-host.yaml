@@ -1,0 +1,176 @@
+---
+# Source: ssd/templates/app-ssd-mfe-host.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: ssd-mfe-platform
+  namespace: onework2
+  labels:
+    helm.sh/chart: ssd-3.3.0
+    env: dev
+    app.kubernetes.io/name: ssd
+    app.kubernetes.io/instance: ssd-router
+    app.kubernetes.io/version: "1.16.x"
+    app.kubernetes.io/managed-by: Helm
+    app: mfe-platform
+spec:
+  ports:
+  - name: http
+    port: 3000
+    targetPort: 3000
+  selector:
+    env: dev
+    app.kubernetes.io/name: ssd
+    app: mfe-platform
+---
+# Source: ssd/templates/app-ssd-mfe-host.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ssd-mfe-platform
+  namespace: onework2
+  labels:
+    helm.sh/chart: ssd-3.3.0
+    env: dev
+    app.kubernetes.io/name: ssd
+    app.kubernetes.io/instance: ssd-router
+    app.kubernetes.io/version: "1.16.x"
+    app.kubernetes.io/managed-by: Helm
+    app: mfe-platform
+spec:
+  replicas: 1
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels:
+      env: dev
+      app.kubernetes.io/name: ssd
+      app: mfe-platform
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: "25%"
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        env: dev
+        app.kubernetes.io/name: ssd
+        app: mfe-platform
+    spec:
+      automountServiceAccountToken: false
+      containers:
+      - name: mfe-platform
+        image: 192.168.139.80:5000/ssd/ssd-host-app-ui:1.13.0
+        imagePullPolicy: Always
+        env:
+        # ENV-vars
+        - name: NGINX_LARGE_CLIENT_HEADER_BUFFER_CONFIG
+          value: "4 32k"
+        - name: NGINX_UI_SERVER_NAME
+          value: "ssd-mfe-platform"
+        - name: NGINX_WORKER_CONNECTIONS
+          value: "4096"
+        - name: NGINX_WORKER_PROCESSES
+          value: "5"
+        - name: NGINX_WORKER_RLIMIT_NOFILE
+          value: "8192"
+        - name: SSD_LAUNCH_USER
+          value: "ssd"
+        envFrom:
+        # ENV-vars from CM
+        - configMapRef:
+            name: ssd-common
+        ports:
+        - containerPort: 3000
+          name: http
+        # Probes
+        livenessProbe:
+          failureThreshold: 10
+          httpGet:
+            path: /health
+            port: 3000
+          initialDelaySeconds: 1
+          periodSeconds: 10
+          successThreshold: 1
+          timeoutSeconds: 2
+        startupProbe:
+          failureThreshold: 30
+          httpGet:
+            path: /health
+            port: 3000
+          initialDelaySeconds: 2
+          periodSeconds: 1
+          successThreshold: 1
+          timeoutSeconds: 2
+        readinessProbe:
+          failureThreshold: 10
+          httpGet:
+            path: /health
+            port: 3000
+          periodSeconds: 2
+          successThreshold: 1
+          timeoutSeconds: 2
+        # Resources
+        resources:
+          limits:
+            cpu: 500m
+            memory: 200Mi
+          requests:
+            cpu: 500m
+            memory: 200Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            add: []
+            drop:
+            - all
+          privileged: false
+          readOnlyRootFilesystem: false
+          runAsGroup: 10001
+          runAsNonRoot: true
+          runAsUser: 10001
+          seccompProfile:
+            type: RuntimeDefault
+        # Volumes
+        volumeMounts:
+        # Mount from CM
+        - mountPath: /etc/nginx/nginx.conf
+          name: cm-mfe-platform
+          subPath: nginx.conf
+        - mountPath: /etc/nginx/logrotate/ssd-mfe-platform.conf
+          name: cm-mfe-platform
+          subPath: logrotate.conf
+        # Mount from Custom
+        - mountPath: /var/log/ssd-v2/ssd-mfe-platform
+          name: logs-dir
+        - mountPath: /var/log/nginx/
+          name: logs-dir2
+        - mountPath: /tmp/nginx/
+          name: run-dir
+      volumes:
+      # Volumes CM
+      - name: cm-mfe-platform
+        configMap:
+          name: ssd-mfe-platform
+          defaultMode: 256
+          items:
+          - key: nginx.conf
+            path: nginx.conf
+          - key: logrotate.conf
+            path: logrotate.conf
+      # Volumes Custom
+      - name: logs-dir
+        emptyDir:
+          sizeLimit: 100Mi
+      - name: logs-dir2
+        emptyDir:
+          sizeLimit: 100Mi
+      - name: run-dir
+        emptyDir:
+          sizeLimit: 10Mi
+      # End of Volumes
+      ## podSpec
+      securityContext:
+        fsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault

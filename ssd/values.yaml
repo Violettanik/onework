@@ -1,0 +1,1949 @@
+createSecrets: false
+envName: ""
+nameOverride: "ssd"
+fullnameOverride: ""
+selectorLabelsWithInstance: false
+
+hostAliases: {}
+imagePullSecrets: []
+
+defaultModeConfigmap: 0400
+defaultModeSecret: 0400
+
+ssdCloudAdmin:
+  automountServiceAccountToken: false
+  appName: cloud-admin
+  enable: false
+  image:
+    pullPolicy: IfNotPresent
+    repository: ssd-services/alt-p10/ssd_cloud_admin
+    tag: 1.13.0
+  initContainers: []
+  env:
+    SSD_CLOUD_ADMIN_CONTEXT_PREFIX: /ssd/ssd-cloud-admin
+    SPRING_CONFIG_EXTRA_FILES: '/var/run/secrets/common.yml'
+    SSD_SPRING_BOOT_ADMIN_CLIENT_ENABLE: false
+  envFromConfigmap:
+    - common
+  volFromSecret:
+    common-props:
+      - path: /var/run/secrets/common.yml
+        subPath: secret-props.yml
+        readOnly: true
+  ## Resources
+  resources:
+    requests:
+      cpu: 500m
+      memory: 750Mi
+  service:
+    enable: false
+    ports:
+      58080: http
+  livenessProbe:
+    failureThreshold: 10
+    httpGet:
+      path: /health # ${SSD_CLOUD_ADMIN_CONTEXT_PREFIX}/login
+      port: 58080
+    initialDelaySeconds: 10
+    periodSeconds: 10
+    successThreshold: 1
+    timeoutSeconds: 2
+  readinessProbe:
+    failureThreshold: 2
+    httpGet:
+      path: /health # ${SSD_CLOUD_ADMIN_CONTEXT_PREFIX}/login
+      port: 58080
+    #initialDelaySeconds: 60
+    periodSeconds: 10
+    successThreshold: 1
+    timeoutSeconds: 2
+  startupProbe:
+    failureThreshold: 60
+    httpGet:
+      path: /health # ${SSD_CLOUD_ADMIN_CONTEXT_PREFIX}/login
+      port: 58080
+    initialDelaySeconds: 10
+    periodSeconds: 5
+    successThreshold: 1
+    timeoutSeconds: 2
+
+ssdCloudConfig:
+  automountServiceAccountToken: false
+  appName: cloud-config
+  enable: false
+  image:
+    pullPolicy: IfNotPresent
+    repository: ssd-services/alt-p10/ssd_cloud_config
+    tag: 1.13.0
+  env:
+    SSD_CLOUD_CONFIG_GIT_SOURCE_BRANCH: master
+    SSD_CLOUD_CONFIG_GIT_SOURCE_SEARCH_PATH: /k8s
+    SSD_CLOUD_CONFIG_GIT_SOURCE_URL: https://works.domain.ru/scm/cloud-config.git
+    SSD_CLOUD_CONFIG_GIT_SOURCE_USERNAME: tuz_sbt_ci_ssdconfigservice
+    SSD_CLOUD_CONFIG_NATIVE_SEARCH_PATH: /usr/local/ssd-v2/config-server/profiles/k8s
+    SSD_CLOUD_CONFIG_PROFILES: native
+    SSD_DEPLOYMENT_PROFILE: k8s
+    SSD_IAM_PROXY_EXTERNAL_ROOT: https://works.domain.ru/ssd
+    SSD_IAM_PROXY_INTERNAL_ROOT: http://ssd-proxy-ws:3001/ssd
+    SSD_KAFKA_GATEWAY_KAFKA_SERVERS: ssd-internal-message-broker.onework.svc.cluster.local:9092
+    SSD_LOGS_ROOT: /var/log/ssd-v2
+  masterSystemIntegration: false
+  # Probes
+  livenessProbe:
+    failureThreshold: 10
+    httpGet:
+      path: /ssd-transaction-manager/default
+      port: 8888
+    initialDelaySeconds: 10
+    periodSeconds: 10
+    successThreshold: 1
+    timeoutSeconds: 2
+  readinessProbe:
+    failureThreshold: 2
+    httpGet:
+      path: /ssd-transaction-manager/default
+      port: 8888
+    #initialDelaySeconds: 60
+    periodSeconds: 10
+    successThreshold: 1
+    timeoutSeconds: 2
+  startupProbe:
+    failureThreshold: 60
+    httpGet:
+      path: /ssd-transaction-manager/default
+      port: 8888
+    initialDelaySeconds: 10
+    periodSeconds: 5
+    successThreshold: 1
+    timeoutSeconds: 2
+  ## Resources
+  resources:
+    requests:
+      cpu: 250m
+      memory: 750Mi
+  service:
+    enable: true
+    ports:
+      8888: http
+  ingress:
+    enable: false
+    className: nginx
+    annotations:
+      nginx.ingress.kubernetes.io/rewrite-target: /$1
+    hosts:
+    - host: works.domain.ru
+      paths:
+      - path: /ssd-cloud-config/(.*)
+        pathType: Prefix
+        port: 8888
+  ## Volumes
+  volFromConfigmap:
+    cloud-config:
+    - path: /usr/local/ssd-v2/config-server/profiles/k8s
+      readOnly: true
+
+### Core
+ssdCommon:
+  automountServiceAccountToken: false
+  appName: common
+  enable: false
+  envInConfigmap:
+    SSD_APPLICATION_CONFIG_SERVER_INTERNAL_URL: http://ssd-cloud-config:8888
+    SSD_APPLICATION_CONFIG_SERVER_REQUEST_PROPS: ?fail-fast=true&max-attempts=10
+    SSD_APPLICATION_DISCOVERY_SERVER_ROOT_INTERNAL_URL: http://ssd-cloud-discovery:8761
+    SSD_ROLE_MANAGER_KC_URL: https://works.domain.ru/auth/
+    SSD_ROLE_MANAGER_KC_REALM: dev
+    SSD_ROLE_MANAGER_ROOT_URL: http://ssd-role-manager.onework.svc.cluster.local:28885
+    SSD_APPLICATION_NAME_SUFFIX: ""
+    SSD_DB_HOST: 10.27.0.2
+    SSD_DB_NAME: ssd
+    SSD_DB_PORT: 5432
+    SSD_DEPLOYMENT_PROFILE: k8s
+    SSD_DEPLOYMENT_ENV: __target_env_name__
+    SSD_IAM_PROXY_CONTEXT_PREFIX: /ssd
+    SSD_IAM_PROXY_EXTERNAL_ROOT: https://works.domain.ru/ssd
+    SSD_IAM_PROXY_INTERNAL_ROOT: http://ssd-proxy-ws:3001
+    SSD_KAFKA_GATEWAY_KAFKA_SERVERS: ssd-internal-message-broker.onework.svc.cluster.local:9092
+    SSD_KAFKA_INTERNAL_TOPIC_RM_EVENTS: ssd-internal-rm-events-k8s
+    SSD_KAFKA_INTERNAL_TOPIC_RM_INPUT: ssd-internal-rm-input-k8s
+    SSD_KAFKA_INTERNAL_TOPIC_SA_INPUT: ssd-internal-sa-input-k8s
+    SSD_KAFKA_INTERNAL_TOPIC_SA_OUTPUT: ssd-internal-sa-output-k8s
+    SSD_KAFKA_EVENTS_TOPIC: ssd-events-k8s
+    SSD_DB_CORE_SERVICES_POOL_SIZE: 5
+    ONEWORK_SESSION_COOKIE_NAME: ONEWORK_IAM_SESSION
+    SSD_AUTH_JWT_VERIFIACTION_ENABLED: 'true'
+    SSD_AUTH_JWT_TARGET_ALG: 'RS256'
+    SSD_AUTH_JWT_EXPIRATION_VERIFIACTION_ENABLED: 'false'
+    SSD_AUTH_JWT_PUBLIC_KEY: '__SSD_AUTH_JWT_PUBLIC_KEY__'
+  envInSecret:
+    SSD_CLOUD_ADMIN_USER: __secret_data__
+    SSD_CLOUD_ADMIN_PASS: __secret_data__
+    SSD_DB_USER: __secret_data__
+    SSD_DB_PASSWORD: __secret_data__
+    SSD_JWT_SERVICE_TOKEN: __secret_data__
+    SSD_ROLE_MANAGER_KC_USER: __secret_data__
+    SSD_ROLE_MANAGER_KC_SECRET: __secret_data__
+
+ssdCoreData:
+  automountServiceAccountToken: false
+  appName: core-data
+  enable: false
+  image:
+    pullPolicy: IfNotPresent
+    repository: ssd-services/alt-p10/ssd_core_data
+    tag: 1.13.0
+  env:
+    #JAVA_EXTRA_OPTIONS: "-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005"
+    SSD_CORE_DATA_INTEGRATION_PROCESSORS: {}
+    SPRING_CONFIG_EXTRA_FILES: '/var/run/secrets/common.yml,/var/run/secrets/db.yml'
+  envFromConfigmap:
+    - common
+  volFromSecret:
+    common-db-props:
+      - path: /var/run/secrets/db.yml
+        subPath: secret-props.yml
+        readOnly: true
+    common-props:
+      - path: /var/run/secrets/common.yml
+        subPath: secret-props.yml
+        readOnly: true
+  # Probes
+  livenessProbe:
+    failureThreshold: 10
+    httpGet:
+      path: /health
+      port: 28888
+    initialDelaySeconds: 10
+    periodSeconds: 10
+    successThreshold: 1
+    timeoutSeconds: 2
+  readinessProbe:
+    failureThreshold: 2
+    httpGet:
+      path: /health
+      port: 28888
+    #initialDelaySeconds: 60
+    periodSeconds: 10
+    successThreshold: 1
+    timeoutSeconds: 2
+  startupProbe:
+    failureThreshold: 60
+    httpGet:
+      path: /health
+      port: 28888
+    initialDelaySeconds: 10
+    periodSeconds: 5
+    successThreshold: 1
+    timeoutSeconds: 2
+  ## Resources
+  resources:
+    requests:
+      cpu: 2000m
+      memory: 1000Mi
+  service:
+    enable: false
+    ports:
+      28888: http
+      #5005: http-jvm-debug
+
+ssdRoleManager:
+  automountServiceAccountToken: false
+  appName: role-manager
+  enable: false
+  image:
+    pullPolicy: IfNotPresent
+    repository: ssd-services/alt-p10/ssd_role_manager
+    tag: 1.13.0
+  env:
+    SSD_ROLE_MANAGER_GROUP_PROCESSING_TOOL_KEYS: nci,ncd,jci,jcd
+    SSD_ROLE_MANAGER_KC_ROLE_SYNC_CRON: '-'
+    SSD_ROLE_MANAGER_KC_VISIBILITY_ATTRIBUTE: ssd.sync.visible
+    SSD_ROLE_MANAGER_KC_OBSOLETE_MODE: false
+    #SSD_ROLE_MANAGER_KC_OBSOLETE_HTTP_CLIENT: NATIVE
+    #SSD_ROLE_MANAGER_KC_OBSOLETE_SSL_ENABLED: false
+    SSD_ROLE_MANAGER_RULE_STORAGE_TYPE: DB
+    SSD_ROLE_MANAGER_USER_PERMISSIONS_MODE: MAP
+    SSD_ROLE_MANAGER_UFS_API_ROOT: http://ufs.domain/rest/v2
+    SSD_PASSWORD_RESET_LIFESPAN_HOURS: 24
+    SSD_PASSWORD_RESET_REDIRECT_URI: 'https://works.domain/ssd'
+    #SSD_RM_MASTER_SYSTEM_INTEGRATION_ENABLED: true
+    #JAVA_EXTRA_OPTIONS: "-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005"
+    SPRING_CONFIG_EXTRA_FILES: '/var/run/secrets/common.yml,/var/run/secrets/db.yml,/var/run/secrets/rm.yml'
+    #SSD_ROLE_MANAGER_BASE_ROLE_MODEL_PATH: 'file:///var/run/secrets/base-role-model-override.json'
+  envFromConfigmap:
+    - common
+  volFromSecret:
+    common-db-props:
+      - path: /var/run/secrets/db.yml
+        subPath: secret-props.yml
+        readOnly: true
+    common-props:
+      - path: /var/run/secrets/common.yml
+        subPath: secret-props.yml
+        readOnly: true
+    role-manager-props:
+      - path: /var/run/secrets/rm.yml
+        subPath: secret-props.yml
+        readOnly: true
+#    role-manager-files:
+#      - path: /var/run/secrets/base-role-model-override.json # should be specified in SSD_ROLE_MANAGER_BASE_ROLE_MODEL_PATH env
+#        subPath: base-role-model-override.json
+#        readOnly: true
+  # Probes
+  livenessProbe:
+    failureThreshold: 10
+    httpGet:
+      path: /health
+      port: 28885
+    initialDelaySeconds: 10
+    periodSeconds: 10
+    successThreshold: 1
+    timeoutSeconds: 2
+  readinessProbe:
+    failureThreshold: 2
+    httpGet:
+      path: /health
+      port: 28885
+    #initialDelaySeconds: 60
+    periodSeconds: 10
+    successThreshold: 1
+    timeoutSeconds: 2
+  startupProbe:
+    failureThreshold: 60
+    httpGet:
+      path: /health
+      port: 28885
+    initialDelaySeconds: 10
+    periodSeconds: 5
+    successThreshold: 1
+    timeoutSeconds: 2
+  ## Resources
+  resources:
+    requests:
+      cpu: 1000m
+      memory: 1500Mi
+  service:
+    enable: false
+    ports:
+      28885: http
+      #5005: http-jvm-debug
+
+ssdTransactionManager:
+  automountServiceAccountToken: false
+  appName: transaction-manager
+  enable: false
+  image:
+    pullPolicy: IfNotPresent
+    repository: ssd-services/alt-p10/ssd_transaction_manager
+    tag: 1.13.0
+  env:
+    SSD_TM_ENABLE_STARTUP_SYNC: "false"
+    SSD_TM_CRON_COMPLETED: "0 */15 * * * ?"
+    SSD_TM_CRON_DUMP: "0 */5 * * * ?"
+    #SSD_DB_LIQUIBASE_SCHEMA: "ssd"
+    #JAVA_EXTRA_OPTIONS: "-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005" # enable debugging on port 5005
+    SPRING_CONFIG_EXTRA_FILES: '/var/run/secrets/common.yml,/var/run/secrets/db.yml'
+  envFromConfigmap:
+    - common
+  volFromSecret:
+    common-db-props:
+      - path: /var/run/secrets/db.yml
+        subPath: secret-props.yml
+        readOnly: true
+    common-props:
+      - path: /var/run/secrets/common.yml
+        subPath: secret-props.yml
+        readOnly: true
+  # Probes
+  livenessProbe:
+    failureThreshold: 10
+    httpGet:
+      path: /health
+      port: 28887
+    initialDelaySeconds: 10
+    periodSeconds: 10
+    successThreshold: 1
+    timeoutSeconds: 2
+  readinessProbe:
+    failureThreshold: 2
+    httpGet:
+      path: /health
+      port: 28887
+    #initialDelaySeconds: 60
+    periodSeconds: 10
+    successThreshold: 1
+    timeoutSeconds: 2
+  startupProbe:
+    failureThreshold: 60
+    httpGet:
+      path: /health
+      port: 28887
+    initialDelaySeconds: 10
+    periodSeconds: 5
+    successThreshold: 1
+    timeoutSeconds: 2
+  ## Resources
+  resources:
+    requests:
+      cpu: 500m
+      memory: 750Mi
+  service:
+    enable: false
+    ports:
+      28887: http
+      #5005: http-jvm-debug
+
+ssdUiAdmin:
+  automountServiceAccountToken: false
+  appName: ui-admin
+  enable: false
+  image:
+    pullPolicy: IfNotPresent
+    repository: ssd-services/alt-p10/ssd_ui_admin
+    tag: 1.13.0
+  env:
+    SSD_CLOUD_GATEWAY_ROOT_URL: http://ssd-cloud-gateway:8080
+    #JAVA_EXTRA_OPTIONS: "-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005"
+    SPRING_CONFIG_EXTRA_FILES: '/var/run/secrets/common.yml,/var/run/secrets/db.yml'
+  envFromConfigmap:
+    - common
+  volFromSecret:
+    common-db-props:
+      - path: /var/run/secrets/db.yml
+        subPath: secret-props.yml
+        readOnly: true
+    common-props:
+      - path: /var/run/secrets/common.yml
+        subPath: secret-props.yml
+        readOnly: true
+  # Probes
+  livenessProbe:
+    failureThreshold: 10
+    httpGet:
+      path: /health
+      port: 28886
+    initialDelaySeconds: 10
+    periodSeconds: 10
+    successThreshold: 1
+    timeoutSeconds: 2
+  readinessProbe:
+    failureThreshold: 2
+    httpGet:
+      path: /health
+      port: 28886
+    initialDelaySeconds: 30
+    periodSeconds: 10
+    successThreshold: 1
+    timeoutSeconds: 2
+  startupProbe:
+    failureThreshold: 60
+    httpGet:
+      path: /health
+      port: 28886
+    initialDelaySeconds: 10
+    periodSeconds: 5
+    successThreshold: 1
+    timeoutSeconds: 2
+  ## Resources
+  resources:
+    requests:
+      cpu: 1000m
+      memory: 1000Mi
+  service:
+    enable: false
+    ports:
+      28886: http
+      #5005: http-jvm-debug
+
+ssdEventProcessor:
+  automountServiceAccountToken: false
+  appName: event-processor
+  enable: false
+  image:
+    pullPolicy: IfNotPresent
+    repository: ssd-services/alt-p10/ssd_event_processor
+    tag: 1.13.0
+  env:
+    SSD_CLOUD_GATEWAY_ROOT_URL: http://ssd-cloud-gateway:8080
+    SPRING_CONFIG_EXTRA_FILES: '/var/run/secrets/common.yml,/var/run/secrets/db.yml'
+  envFromConfigmap:
+    - common
+  volFromSecret:
+    common-db-props:
+      - path: /var/run/secrets/db.yml
+        subPath: secret-props.yml
+        readOnly: true
+    common-props:
+      - path: /var/run/secrets/common.yml
+        subPath: secret-props.yml
+        readOnly: true
+  ## Resources
+  resources:
+    requests:
+      cpu: 1000m
+      memory: 1000Mi
+  service:
+    enable: false
+    ports:
+      28889: http
+
+ssdKafkaIntegrationAdapter:
+  automountServiceAccountToken: false
+  appName: kafka-integration-adapter
+  enable: false
+  image:
+    pullPolicy: IfNotPresent
+    repository: ssd-services/alt-p10/ssd_kafka_integration_adapter
+    tag: 1.13.0
+  env:
+    SSD_CLOUD_GATEWAY_ROOT_URL: http://ssd-cloud-gateway:8080
+    SPRING_CONFIG_EXTRA_FILES: '/var/run/secrets/common.yml,/var/run/secrets/db.yml'
+  envFromConfigmap:
+    - common
+  volFromSecret:
+    common-db-props:
+      - path: /var/run/secrets/db.yml
+        subPath: secret-props.yml
+        readOnly: true
+    common-props:
+      - path: /var/run/secrets/common.yml
+        subPath: secret-props.yml
+        readOnly: true
+  # Probes
+  livenessProbe:
+    failureThreshold: 10
+    httpGet:
+      path: /health
+      port: 28891
+    initialDelaySeconds: 10
+    periodSeconds: 10
+    successThreshold: 1
+    timeoutSeconds: 2
+  readinessProbe:
+    failureThreshold: 2
+    httpGet:
+      path: /health
+      port: 28891
+    initialDelaySeconds: 30
+    periodSeconds: 10
+    successThreshold: 1
+    timeoutSeconds: 2
+  startupProbe:
+    failureThreshold: 60
+    httpGet:
+      path: /health
+      port: 28891
+    initialDelaySeconds: 10
+    periodSeconds: 5
+    successThreshold: 1
+    timeoutSeconds: 2
+  ## Resources
+  resources:
+    requests:
+      cpu: 1000m
+      memory: 1000Mi
+  service:
+    enable: false
+    ports:
+      28891: http
+
+ssdSideMenuBackend:
+  automountServiceAccountToken: false
+  appName: side-menu-backend
+  enable: false
+  image:
+    pullPolicy: Always
+    repository: ssd-services/alt-p10/ssd_side_menu_backend
+    tag: 1.13.0
+  env:
+    SPRING_CONFIG_EXTRA_FILES: '/var/run/secrets/common.yml,/var/run/secrets/db.yml'
+  envFromConfigmap:
+    - common
+  volFromSecret:
+    common-db-props:
+      - path: /var/run/secrets/db.yml
+        subPath: secret-props.yml
+        readOnly: true
+    common-props:
+      - path: /var/run/secrets/common.yml
+        subPath: secret-props.yml
+        readOnly: true
+  volFromCustom:
+    logs-dir:
+      mounts:
+        - mountPath: /var/log/ssd-v2/
+      volSpec:
+        emptyDir:
+          sizeLimit: 100Mi
+    web-server-tmp:
+      mounts:
+        - mountPath: /tmp
+      volSpec:
+        emptyDir:
+          sizeLimit: 100Mi
+  securityContext:
+    readOnlyRootFilesystem: true
+    runAsUser: 10001
+    runAsGroup: 10001
+    runAsNonRoot: true
+    privileged: false
+    allowPrivilegeEscalation: false
+    capabilities:
+      add: []
+      drop:
+        - all
+    seccompProfile:
+      type: RuntimeDefault
+  podSpec:
+    securityContext:
+      fsGroup: 10001
+      seccompProfile:
+        type: RuntimeDefault
+  resources:
+    requests:
+      cpu: 500m
+      memory: 500Mi
+    limits:
+      cpu: 750m
+      memory: 750Mi
+  service:
+    enable: true
+    ports:
+      28892: http
+  startupProbe:
+    failureThreshold: 10
+    httpGet:
+      path: /health
+      port: 28892
+    initialDelaySeconds: 60
+    timeoutSeconds: 5
+  livenessProbe:
+    failureThreshold: 10
+    httpGet:
+      path: /health
+      port: 28892
+    initialDelaySeconds: 60
+    timeoutSeconds: 5
+  readinessProbe:
+    failureThreshold: 10
+    httpGet:
+      path: /health
+      port: 28892
+    initialDelaySeconds: 60
+    timeoutSeconds: 5
+
+privilegesService:
+  appName: privileges-service
+  enable: false
+
+ssdAiService:
+  automountServiceAccountToken: false
+  appName: ai-service
+  enable: false
+  image:
+    pullPolicy: Always
+    repository: ssd-services/alt-p10/ssd_ai_service
+    tag: 1.13.0
+  env:
+    SPRING_CONFIG_EXTRA_FILES: '/var/run/secrets/common.yml,/var/run/secrets/ai-service.yml'
+    SSD_AI_SERVICE_POST_PROCESSING_KEY_MAX_LENGTH: 8
+    SSD_AI_SERVICE_POST_PROCESSING_KEY_CLEANUP_REGEX: '^[w+]'
+    SSD_AI_SERVICE_POST_PROCESSING_FORBIDDEN_KEYS: '.atom,.git,.well-known,404.html,422.html,500.html,502.html,503.html,admin,api,apple-touch-icon-precomposed.png,apple-touch-icon.png,assets,dashboard,deploy.html,explore,favicon.ico,favicon.png,files,groups,health_check,help,import,jwt,login,oauth,profile,projects,public,robots.txt,s,search,sitemap,sitemap.xml,sitemap.xml.gz,slash-command-logo.png,snippets,unsubscribes,uploads,users,v2,badges,blame,blob,builds,commits,create,create_dir,edit,environments/folders,find_file,gitlab-lfs/objects,info/lfs/objects,new,preview,raw,refs,tree,update,wikis'
+    SSD_AI_SERVICE_POST_PROCESSING_NAME_MAX_LENGTH: 127
+    SSD_AI_SERVICE_POST_PROCESSING_DESCRIPTION_MAX_LENGTH: 255
+    SSD_AI_SERVICE_PROMPT_TEMPLATES: '{"system": "Поставь себя на место координатора организации", "user": "Сгенерируй название для проекта на русском языке (первая строка до <<name_size_limit>> символов, включая пробелы), сгенерируй ключ для проекта (вторая строка <<key_size_limit>> символов), состоящий из латинских букв и цифр в нижнем регистре, а также сгенерируй описание проекта на русском языке (третья строка до <<description_size_limit>> символов, включая пробелы). Не нужно генерировать что-либо на английском языке, только русский. Целью проекта будет: [ <<project_goal>> ].Ответ выдай в формате JSON, сгенерированое имя проекта помести в значение ключа projectName, сгенерированый ключ проекта помести в значение ключа projectKey, сгенерированое описание проекта помести в значение ключа description"}'
+    SSD_AI_SERVICE_STUB_GENERATION: true
+    SSD_AI_SERVICE_URLS_GIGA_TOKEN: https://ngw.devices.sberbank.ru:9443/api/v2/oauth
+    SSD_AI_SERVICE_URLS_GIGA_COMPLETION: https://gigachat.devices.sberbank.ru/api/v1/chat/completions
+    SSD_AI_SERVICE_MISC_REQUESTS_CONTROLLER_ENABLED: false
+    SSD_AI_SERVICE_GIGA_MODEL: GigaChat
+  envFromConfigmap:
+    - common
+  volFromSecret:
+    common-props:
+      - path: /var/run/secrets/common.yml
+        subPath: secret-props.yml
+        readOnly: true
+    ai-service-props:
+      - path: /var/run/secrets/ai-service.yml
+        subPath: secret-props.yml
+        readOnly: true
+  volFromCustom:
+    logs-dir:
+      mounts:
+        - mountPath: /var/log/ssd-v2/
+      volSpec:
+        emptyDir:
+          sizeLimit: 100Mi
+    web-server-tmp:
+      mounts:
+        - mountPath: /tmp
+      volSpec:
+        emptyDir:
+          sizeLimit: 100Mi
+  resources:
+    requests:
+      cpu: 500m
+      memory: 500Mi
+    limits:
+      cpu: 750m
+      memory: 750Mi
+  service:
+    enable: true
+    ports:
+      28893: http
+  livenessProbe:
+    failureThreshold: 10
+    httpGet:
+      path: /health
+      port: 28893
+    initialDelaySeconds: 60
+    timeoutSeconds: 5
+  readinessProbe:
+    failureThreshold: 10
+    httpGet:
+      path: /health
+      port: 28893
+    initialDelaySeconds: 60
+    timeoutSeconds: 5
+  startupProbe:
+    failureThreshold: 60
+    httpGet:
+      path: /health
+      port: 28893
+    initialDelaySeconds: 10
+    periodSeconds: 5
+    successThreshold: 1
+    timeoutSeconds: 2
+
+worksBasicProxy:
+  appName: works-basic-proxy
+  enable: false
+  ingress:
+    enable: false
+
+ssdProxyWs:
+  automountServiceAccountToken: false
+  appName: proxy-ws
+  enable: false
+  image:
+    pullPolicy: IfNotPresent
+    repository: ssd-services/alt-p10/ssd_proxy_ws
+    tag: 1.13.0
+  envFromConfigmap:
+    - common
+  env:
+    SSD_PROXY_LOGIN_FORM_TITLE: Platform V Works
+    SSD_APPLICATION_CONFIG_SERVER_INTERNAL_URL: http://ssd-cloud-config.onework.svc.cluster.local:8888
+    SSD_APPLICATION_DISCOVERY_SERVER_ROOT_INTERNAL_URL: http://ssd-cloud-discovery.onework.svc.cluster.local:8761
+    SSD_DEPLOYMENT_PROFILE: k8s
+    SSD_PROXY_KC_CLIENT: onework-login
+    SSD_PROXY_REDIRECTS_PREFIX: /ssd
+    DEFAULT_OK_REDIRECT_URL: /ssd/
+    SESSION_AUTH_CACHE_EXPIRATION_SECONDS: "1800"
+    IAM_JWT_TOKEN_PREFIX: Bearer
+    ONEWORK_JWT_TOKEN_PREFIX: Bearer
+    ONEWORK_SESSION_COOKIE_SAME_SITE: LaX
+    SSD_PROXY_TOKEN_ENCRYPTOR_ENABLED: true # allow disabling encryption of a long-live token
+    SSD_PROXY_SESSION_ENCRYPTOR_ENABLED: true # allow disabling encryption of a session cookie
+    SSD_PROXY_SECRETS_JSON_FILE_PATH: '/var/run/secrets/secrets.json'
+  ## Volumes
+  volFromSecret:
+    proxy-ws:
+      - path: /var/run/secrets/secrets.json
+        subPath: configuration.json
+        readOnly: true
+  volFromConfigmap:
+    proxy-ws:
+      - path: /usr/local/openresty/nginx/conf/nginx.conf
+        subPath: nginx.conf
+        readOnly: true
+      - path: /usr/local/openresty/nginx/static/checkEmail.html
+        subPath: checkEmail.html
+        readOnly: true
+      - path: /usr/local/openresty/nginx/static/login.html
+        subPath: login.html
+        readOnly: true
+      - path: /usr/local/openresty/nginx/static/offlineTokenGeneration.html
+        subPath: offlineTokenGeneration.html
+        readOnly: true
+      - path: /usr/local/openresty/nginx/static/resetPassword.html
+        subPath: resetPassword.html
+        readOnly: true
+      - path: /usr/local/openresty/nginx/static/errorPages/accountDisabled.html
+        subPath: accountDisabled.html
+        readOnly: true
+      - path: /usr/local/openresty/nginx/static/errorPages/forbidden.html
+        subPath: forbidden.html
+        readOnly: true
+      - path: /usr/local/openresty/nginx/static/errorPages/notfound.html
+        subPath: notfound.html
+        readOnly: true
+      - path: /usr/local/openresty/nginx/static/errorPages/sessionExpired.html
+        subPath: sessionExpired.html
+        readOnly: true
+      - path: /usr/local/openresty/nginx/static/errorPages/sessionLimits.html
+        subPath: sessionLimits.html
+        readOnly: true
+      - path: /usr/local/openresty/nginx/static/errorPages/unauthorized.html
+        subPath: unauthorized.html
+        readOnly: true
+      - path: /usr/local/openresty/logrotate/ssd-proxy-ws.conf
+        subPath: logrotate.conf
+        readOnly: true
+  ## Resources
+  resources:
+    requests:
+      cpu: 1000m
+      memory: 500Mi
+  # Probes
+  livenessProbe:
+    failureThreshold: 10
+    httpGet:
+      path: /health
+      port: 3001
+    initialDelaySeconds: 1
+    periodSeconds: 10
+    successThreshold: 1
+    timeoutSeconds: 2
+  readinessProbe:
+    failureThreshold: 10
+    httpGet:
+      path: /health
+      port: 3001
+    periodSeconds: 2
+    successThreshold: 1
+    timeoutSeconds: 2
+  startupProbe:
+    failureThreshold: 30
+    httpGet:
+      path: /health
+      port: 3001
+    initialDelaySeconds: 2
+    periodSeconds: 1
+    successThreshold: 1
+    timeoutSeconds: 2
+  service:
+    enable: true
+    ports:
+      3001: http
+  config:
+    logs:
+      formatBlock: |
+        log_format  main  '$remote_addr - $remote_user [$time_local] [$request_id] "$request" '
+                  '$status $body_bytes_sent "$http_referer" '
+                  '"$http_user_agent" "$http_x_forwarded_for"';
+      accessMode: main
+      errorMode: notice
+      rootFolder: /var/log/ssd-v2/ssd-proxy-ws
+      rotation:
+        access:
+          depth: 5
+          size: 10M
+        error:
+          depth: 5
+          size: 10M
+  routes:
+    customRoutes: |
+    proxyRootContext:
+      internal: /ssd  # prefix of routes in nginx configuration (should correspond to rewriting rule in Ingress route)
+      external: /ssd  # prefix on external domain (ex. https://domain.works.ru/ssd)
+    logoutOverride: {}
+    auth:
+      login_script: /opt/ssd-proxy-service/src/iam/do_auth_in_kecycloak.lua
+      logout_script: /opt/ssd-proxy-service/src/iam/invalidate_session.lua
+      auth_block: |
+        access_by_lua_block { loadfile('/opt/ssd-proxy-service/src/iam/assign_auth_header.lua')(); loadfile('/opt/ssd-proxy-service/src/privileges/assign_request_permissions.lua')(); }
+      auth_block_with_basic: |
+        access_by_lua_block { loadfile('/opt/ssd-proxy-service/src/iam/assign_auth_header.lua')(); loadfile('/opt/ssd-proxy-service/src/privileges/assign_request_permissions.lua')(); }
+      auth_block_nexus_repo: |
+        access_by_lua_block { if not loadfile('/opt/ssd-proxy-service/src/iam/analyze_allowed_auth_schemes.lua')(true) then loadfile('/opt/ssd-proxy-service/src/iam/assign_auth_header_v3.lua')(); loadfile('/opt/ssd-proxy-service/src/privileges/assign_request_permissions.lua')(); end }
+      auth_block_jenkins: |
+        access_by_lua_block { if not loadfile('/opt/ssd-proxy-service/src/iam/analyze_allowed_auth_schemes.lua')(true, 'Secret-Key') then loadfile('/opt/ssd-proxy-service/src/iam/assign_auth_header_v3.lua')(); loadfile('/opt/ssd-proxy-service/src/privileges/assign_request_permissions.lua')(); end }
+      auth_block_dpm: |
+        access_by_lua_block { if not loadfile('/opt/ssd-proxy-service/src/iam/analyze_allowed_auth_schemes.lua')(false, 'token') then loadfile('/opt/ssd-proxy-service/src/iam/assign_auth_header_v3.lua')(); loadfile('/opt/ssd-proxy-service/src/privileges/assign_request_permissions.lua')(); end }
+      auth_block_sonar: |
+        access_by_lua_block { if not loadfile('/opt/ssd-proxy-service/src/iam/analyze_allowed_auth_schemes.lua')(true) then loadfile('/opt/ssd-proxy-service/src/iam/assign_auth_header_v3.lua')(); loadfile('/opt/ssd-proxy-service/src/privileges/assign_request_permissions.lua')(); end }
+    deploymentExternalUrl: __ingress_external_url__
+    forbiddenPathsRegex: '/ssd/ssd-(role-manager|core-data|transaction-manager|ui-admin)/actuator(/|$)(.*)'
+    ssd:
+      optionsCorsStub: false
+      tmRoot: http://ssd-transaction-manager:28887/
+      rmRoot:  http://ssd-role-manager:28885/
+      coreDataRoot:  http://ssd-core-data:28888/
+      uiAdminRoot: http://ssd-ui-admin:28886/
+      sideMenuBackendRoot: http://ssd-side-menu-backend:28892/
+      cloudAdminRoot: http://ssd-cloud-admin:58080/ssd/ssd-cloud-admin
+      uiRoot: http://ssd-mfe-platform:3000/
+    mfe:
+      enable: false
+      externalRoot: /host
+      rootUrl: http://ssd-mfe-platform:3000
+      ssdUiRoute: /ssd/external/ow
+      ssdUiTarget: http://ssd-ui:3000
+      remoteRoutes: |
+        add_header Content-Type application/json;
+        return 200 '[
+              {
+                "path": "/ssd/*",
+                "id": "ow",
+                "name": "OW",
+                "options": {
+                  "name": "ow_export_app",
+                  "url": "/ssd/external/ow/mf-manifest.json"
+                }
+              }
+            ]';
+      commonMf: |
+        add_header Content-Type application/json;
+        return 200 '[]';
+      dashboardLayouts: |
+          add_header Content-Type application/json;
+          return 200 '[]';
+    track:
+      url: http://localhost/gitlab
+      bodySizeLimit: 1000M
+    sonar:
+      url: http://localhost/ssd/tools/sonar
+      bodySizeLimit: 10M
+    dpm:
+      base: https://localhost/dpm
+      api: https://localhost/dpm/api
+      front: https://localhost/dpm/front
+      auth: https://localhost/dpm/auth
+    jenkins:
+      - type: ci
+        url: http://localhost/jenkins-ci
+        bodySizeLimit: 1M
+    nexus:
+      - type: ci
+        url: http://localhost/ssd/tools/nexus-ci
+        bodySizeLimit: 1000M
+    fose:
+      front: http://localhost/ssd/tools/fose
+      back: http://localhost/ssd/tools/fose
+      proxy: http://localhost/ssd/tools/fose
+    view:
+      url: http://localhost/ssd/tools/viewwork
+    mock: http://localhost/mock
+    pact: http://localhost/pact
+    load:
+      front: http://localhost/ssd/tools/loadtest
+      back: http://localhost/ssd/tools/loadtest/back
+      launcher: http://localhost/ssd/tools/loadtest/launcher
+      pusher: http://localhost/ssd/tools/loadtest/pusher
+    jazz:
+      token:
+        endpoint: http://localhost/jazz-adapter/accessToken
+        #stub: _for_env_without_access_to_jazz_api_
+  # If ssd-proxy-ws is a single proxy service and its ingress is enabled
+  #       access_by_lua_block {
+  #        loadfile('/opt/ssd-proxy-service/src/iam/assign_auth_header.lua')()
+  #        loadfile('/opt/ssd-proxy-service/src/privileges/assign_request_permissions.lua')()
+  #      }
+  #
+  # If ssp-proxy-ws works behind ssd-iam-proxy:
+  # -----
+  # For ssd-proxy-ws version < 1.6.0
+  #      access_by_lua_file /opt/ssd-proxy-service/src/assign_request_permissions.lua;
+  # -----
+  # For ssd-proxy-ws version => 1.6.0
+  #      access_by_lua_file /opt/ssd-proxy-service/src/privileges/assign_request_permissions.lua;
+  ingress:
+    enable: false
+    annotations:
+      #nginx.ingress.kubernetes.io/rewrite-target: /ssd/$2
+      nginx.ingress.kubernetes.io/proxy-buffer-size: 256k
+      nginx.ingress.kubernetes.io/proxy-body-size: 1g
+    className: nginx
+    hosts:
+      - host: works.domain.ru
+        paths:
+          - path: /ssd
+            pathType: Prefix
+            port: 3001
+
+ssdUi:
+  automountServiceAccountToken: false
+  appName: ui
+  enable: false
+  image:
+    pullPolicy: IfNotPresent
+    repository: ssd-services/alt-p10/ssd_ui
+    tag: 1.13.0
+  envFromConfigmap:
+    - common
+  env:
+    NGINX_UI_SERVER_NAME: ssd-ui
+    SSD_LAUNCH_USER: root
+    NGINX_WORKER_PROCESSES: 5
+    NGINX_WORKER_CONNECTIONS: 4096
+    NGINX_WORKER_RLIMIT_NOFILE: 8192
+    NGINX_LARGE_CLIENT_HEADER_BUFFER_CONFIG: '4 32k'
+  ## Resources
+  resources:
+    requests:
+      cpu: 1000m
+      memory: 500Mi
+  service:
+    enable: false
+    ports:
+      3000: http
+  config:
+    logs:
+      formatBlock: |
+        log_format  main  '$remote_addr - $remote_user [$time_local] [$request_id] "$request" '
+                  '$status $body_bytes_sent "$http_referer" '
+                  '"$http_user_agent" "$http_x_forwarded_for"';
+      accessMode: main
+      errorMode: notice
+      rootFolder: /var/log/ssd-v2/ssd-ui
+      rotation:
+        access:
+          depth: 5
+          size: 10M
+        error:
+          depth: 5
+          size: 10M
+  ## Volumes
+  volFromConfigmap: {}
+  menuStructureOverride: |
+      [
+      ]
+# In case of side-menu structure overriding
+#  volFromConfigmap:
+#    ui:
+#     - path: /etc/logrotate.conf
+#       subPath: logrotate.conf
+#     - path: /etc/logrotate-cron.conf
+#       subPath: logrotate-cron.conf
+#     - path: /etc/nginx/html/parent-menu-items.json
+#       subPath: parent-menu-items.json
+#  menuStructureOverride: |
+#     [
+#        content for parent-menu-items.json
+#     ]
+
+
+ssdMfeHost:
+  automountServiceAccountToken: false
+  appName: mfe-platform
+  enable: false
+  image:
+    pullPolicy: IfNotPresent
+    repository: ssd-services/alt-p10/ssd-me-host
+    tag: 1.15.0
+  envFromConfigmap:
+    - common
+  env:
+    NGINX_UI_SERVER_NAME: ssd-mfe-host
+    SSD_LAUNCH_USER: ssd
+    NGINX_WORKER_PROCESSES: 5
+    NGINX_WORKER_CONNECTIONS: 4096
+    NGINX_WORKER_RLIMIT_NOFILE: 8192
+    NGINX_LARGE_CLIENT_HEADER_BUFFER_CONFIG: '4 32k'
+  ## Resources
+  resources:
+    requests:
+      cpu: 1000m
+      memory: 500Mi
+  service:
+    enable: false
+    ports:
+      3000: http
+  config:
+    logs:
+      formatBlock: |
+        log_format  main  '$remote_addr - $remote_user [$time_local] [$request_id] "$request" '
+                  '$status $body_bytes_sent "$http_referer" '
+                  '"$http_user_agent" "$http_x_forwarded_for"';
+      accessMode: main
+      errorMode: notice
+      rootFolder: /var/log/ssd-v2/ssd-mfe-platform
+      rotation:
+        access:
+          depth: 5
+          size: 10M
+        error:
+          depth: 5
+          size: 10M
+  livenessProbe:
+    failureThreshold: 10
+    httpGet:
+      path: /health
+      port: 3000
+    initialDelaySeconds: 1
+    periodSeconds: 10
+    successThreshold: 1
+    timeoutSeconds: 2
+  readinessProbe:
+    failureThreshold: 10
+    httpGet:
+      path: /health
+      port: 3000
+    periodSeconds: 2
+    successThreshold: 1
+    timeoutSeconds: 2
+  startupProbe:
+    failureThreshold: 30
+    httpGet:
+      path: /health
+      port: 3000
+    initialDelaySeconds: 2
+    periodSeconds: 1
+    successThreshold: 1
+    timeoutSeconds: 2
+
+### Adapters
+ssdAdapters:
+  appName: adapters
+  enable: false
+  files:
+    dpm.yml: |
+      props-override:
+        adapters:
+          dpm:
+            token: __secret_data__
+    fose.yml: |
+      props-override:
+        adapters:
+          fose:
+            token: __secret_data__
+    gitlab.yml: |
+      props-override:
+        adapters:
+          gitlab:
+            token: __secret_data__
+    jcd.yml: |
+      props-override:
+        adapters:
+          jenkins:
+            login: __secret_data__
+            access-token: __secret_data__
+            jwt-token: __secret_data__
+    jci.yml: |
+      props-override:
+        adapters:
+          jenkins:
+            login: __secret_data__
+            access-token: __secret_data__
+            jwt-token: __secret_data__
+    jenkins-role-creation-template.groovy.template: |
+      import jenkins.model.*
+      import hudson.security.*
+      import java.util.*
+      import com.michelin.cio.hudson.plugins.rolestrategy.*
+      import java.lang.reflect.*
+      def authStrategy = Jenkins.instance.getAuthorizationStrategy()
+      Jenkins jenkins = Jenkins.get()
+      RoleBasedAuthorizationStrategy roleAuthStrategy = (RoleBasedAuthorizationStrategy) authStrategy
+      [# th:each="roleDescription : ${roleDescriptions}"]
+        roleAuthStrategy.doAddRole("projectRoles", "[(${roleDescription.roleName})]", "[(${roleDescription.permissions})]", "true", "[(${roleDescription.pattern})]", null);
+        jenkins.save()
+      [/]
+
+      import jenkins.model.*
+      import hudson.security.*
+      import java.util.*
+      import com.michelin.cio.hudson.plugins.rolestrategy.*
+      import java.lang.reflect.*
+
+      [# th:each="roleDescription : ${roleDescriptions}"]
+      roleAuthStrategy.doAssignRole('projectRoles', '[(${roleDescription.roleName})]', '[(${roleDescription.roleName})]')
+      [/]
+    jenkins-role-creation-template-old.groovy.template: |
+      import jenkins.model.*
+      import hudson.security.*
+      import java.util.*
+      import com.michelin.cio.hudson.plugins.rolestrategy.*
+      import java.lang.reflect.*
+      def authStrategy = Jenkins.instance.getAuthorizationStrategy()
+      Jenkins jenkins = Jenkins.get()
+      RoleBasedAuthorizationStrategy roleAuthStrategy = (RoleBasedAuthorizationStrategy) authStrategy
+      [# th:each="roleDescription : ${roleDescriptions}"]
+        roleAuthStrategy.doAddRole("projectRoles", "[(${roleDescription.roleName})]", "[(${roleDescription.permissions})]", "true", "[(${roleDescription.pattern})]");
+        jenkins.save()
+      [/]
+
+      import jenkins.model.*
+      import hudson.security.*
+      import java.util.*
+      import com.michelin.cio.hudson.plugins.rolestrategy.*
+      import java.lang.reflect.*
+
+      [# th:each="roleDescription : ${roleDescriptions}"]
+      roleAuthStrategy.doAssignRole('projectRoles', '[(${roleDescription.roleName})]', '[(${roleDescription.roleName})]')
+      [/]
+    ncd.yml: |
+      props-override:
+        adapters:
+          nexus:
+            login: __secret_data__
+            password: __secret_data__
+    nci.yml: |
+      props-override:
+        adapters:
+          nexus:
+            login: __secret_data__
+            password: __secret_data__
+    sonar.yml: |
+      props-override:
+        adapters:
+          sonar:
+            login: __secret_data__
+            password: __secret_data__
+    load.yml: |
+      props-override:
+        adapters:
+          load:
+            access-token: __secret_data__
+            jwt-token: __secret_data__
+    jazz.yml: |
+      props-override:
+        adapters:
+          jazz:
+            secret-key: __secret_data__
+    sc.yml: |
+      props-override:
+        adapters:
+          sc:
+            secret-key: __secret_data__
+
+ssdAdaptersConfig:
+  ssdAdapterDpm:
+    appName: adapter-dpm
+    enable: false
+    image:
+      pullPolicy: IfNotPresent
+      repository: ssd-services/alt-p10/ssd_adapter_dpm
+      tag: 1.13.0
+    env:
+      SSD_SA_DPM_BASE_URL: http://dpm.dpm.svc.cluster.local/dpm/
+      SSD_SA_DPM_LOGIN: tuz_dpm_admin
+      SPRING_CONFIG_EXTRA_FILES: '/var/run/secrets/common.yml,/var/run/secrets/adapter.yml'
+    envFromConfigmap:
+      - common
+    volFromSecret:
+      adapters-files:
+        - path: /var/run/secrets/adapter.yml
+          subPath: dpm.yml
+          readOnly: true
+      common-props:
+        - path: /var/run/secrets/common.yml
+          subPath: secret-props.yml
+          readOnly: true
+    # Probes
+    livenessProbe:
+      failureThreshold: 10
+      httpGet:
+        path: /health
+        port: 28808
+      initialDelaySeconds: 10
+      periodSeconds: 10
+      successThreshold: 1
+      timeoutSeconds: 2
+    readinessProbe:
+      failureThreshold: 2
+      httpGet:
+        path: /health
+        port: 28808
+      #initialDelaySeconds: 60
+      periodSeconds: 10
+      successThreshold: 1
+      timeoutSeconds: 2
+    startupProbe:
+      failureThreshold: 60
+      httpGet:
+        path: /health
+        port: 28808
+      initialDelaySeconds: 10
+      periodSeconds: 5
+      successThreshold: 1
+      timeoutSeconds: 2
+    ## Resources
+    resources:
+      requests:
+        cpu: 200m
+        memory: 500Mi
+    service:
+      enable: false
+      ports:
+        28808: http
+
+  ssdAdapterFose:
+    appName: adapter-fose
+    enable: false
+    image:
+      pullPolicy: IfNotPresent
+      repository: ssd-services/alt-p10/ssd_adapter_fose
+      tag: 1.13.0
+    env:
+      SSD_SA_FOSE_BASE_URL: http://fose-backend.fose.svc.cluster.local/ssd/tools/fose/api/
+      SSD_SA_FOSE_ENDPOINT_URL: https://works.domain.ru/ssd/tools/fose/
+      SSD_SA_FOSE_NESTING_LEVEL: "4"
+      SPRING_CONFIG_EXTRA_FILES: '/var/run/secrets/common.yml,/var/run/secrets/adapter.yml'
+    envFromConfigmap:
+      - common
+    volFromSecret:
+      adapters-files:
+        - path: /var/run/secrets/adapter.yml
+          subPath: fose.yml
+          readOnly: true
+      common-props:
+        - path: /var/run/secrets/common.yml
+          subPath: secret-props.yml
+          readOnly: true
+    # Probes
+    livenessProbe:
+      failureThreshold: 10
+      httpGet:
+        path: /health
+        port: 28807
+      initialDelaySeconds: 10
+      periodSeconds: 10
+      successThreshold: 1
+      timeoutSeconds: 2
+    readinessProbe:
+      failureThreshold: 2
+      httpGet:
+        path: /health
+        port: 28807
+      #initialDelaySeconds: 60
+      periodSeconds: 10
+      successThreshold: 1
+      timeoutSeconds: 2
+    startupProbe:
+      failureThreshold: 60
+      httpGet:
+        path: /health
+        port: 28807
+      initialDelaySeconds: 10
+      periodSeconds: 5
+      successThreshold: 1
+      timeoutSeconds: 2
+    ## Resources
+    resources:
+      requests:
+        cpu: 200m
+        memory: 500Mi
+    service:
+      enable: false
+      ports:
+        28807: http
+
+  ssdAdapterGitlab:
+    appName: adapter-gitlab
+    enable: false
+    image:
+      pullPolicy: IfNotPresent
+      repository: ssd-services/alt-p10/ssd_adapter_gitlab
+      tag: 1.13.0
+    env:
+      SSD_SA_GITLAB_URL: https://works.domain.ru/ssd/tools/track
+      SPRING_CONFIG_EXTRA_FILES: '/var/run/secrets/common.yml,/var/run/secrets/adapter.yml'
+    envFromConfigmap:
+      - common
+    volFromSecret:
+      adapters-files:
+        - path: /var/run/secrets/adapter.yml
+          subPath: gitlab.yml
+          readOnly: true
+      common-props:
+        - path: /var/run/secrets/common.yml
+          subPath: secret-props.yml
+          readOnly: true
+    # Probes
+    livenessProbe:
+      failureThreshold: 10
+      httpGet:
+        path: /health
+        port: 28800
+      initialDelaySeconds: 10
+      periodSeconds: 10
+      successThreshold: 1
+      timeoutSeconds: 2
+    readinessProbe:
+      failureThreshold: 2
+      httpGet:
+        path: /health
+        port: 28800
+      #initialDelaySeconds: 60
+      periodSeconds: 10
+      successThreshold: 1
+      timeoutSeconds: 2
+    startupProbe:
+      failureThreshold: 60
+      httpGet:
+        path: /health
+        port: 28800
+      initialDelaySeconds: 10
+      periodSeconds: 5
+      successThreshold: 1
+      timeoutSeconds: 2
+    ## Resources
+    resources:
+      requests:
+        cpu: 200m
+        memory: 500Mi
+    service:
+      enable: false
+      ports:
+        28800: http
+
+  ssdAdapterJenkinsCd:
+    appName: adapter-jenkins-cd
+    enable: false
+    image:
+      pullPolicy: IfNotPresent
+      repository: ssd-services/alt-p10/ssd_adapter_jenkins
+      tag: 1.13.0
+    env:
+      JENKINS_TYPE: cd
+      SSD_SA_JENKINS_URL: https://works.domain.ru/jenkins-cd/
+      SSD_SERVER_PORT: 28802
+      SSD_SA_JENKINS_SCRIPTS_ROLE_CREATION: 'file:/var/run/secrets/jenkins-role-creation-template.groovy.template'
+    envFromConfigmap:
+      - common
+    volFromSecret:
+      adapters-files:
+        - path: /var/run/secrets/adapter.yml
+          subPath: jcd.yml
+          readOnly: true
+        - path: /var/run/secrets/jenkins-role-creation-template.groovy.template
+          subPath: jenkins-role-creation-template.groovy.template
+          readOnly: true
+      common-props:
+        - path: /var/run/secrets/common.yml
+          subPath: secret-props.yml
+          readOnly: true
+    # Probes
+    livenessProbe:
+      failureThreshold: 10
+      httpGet:
+        path: /health
+        port: 28802
+      initialDelaySeconds: 10
+      periodSeconds: 10
+      successThreshold: 1
+      timeoutSeconds: 2
+    readinessProbe:
+      failureThreshold: 2
+      httpGet:
+        path: /health
+        port: 28802
+      #initialDelaySeconds: 60
+      periodSeconds: 10
+      successThreshold: 1
+      timeoutSeconds: 2
+    startupProbe:
+      failureThreshold: 60
+      httpGet:
+        path: /health
+        port: 28802
+      initialDelaySeconds: 10
+      periodSeconds: 5
+      successThreshold: 1
+      timeoutSeconds: 2
+    ## Resources
+    resources:
+      requests:
+        cpu: 200m
+        memory: 500Mi
+    service:
+      enable: false
+      ports:
+        28802: http
+
+  ssdAdapterJenkinsCi:
+    appName: adapter-jenkins-ci
+    enable: false
+    image:
+      pullPolicy: IfNotPresent
+      repository: ssd-services/alt-p10/ssd_adapter_jenkins
+      tag: 1.13.0
+    env:
+      JENKINS_TYPE: ci
+      SSD_SA_JENKINS_URL: https://works.domain.ru/jenkins-ci/
+      SSD_SERVER_PORT: 28801
+      SPRING_CONFIG_EXTRA_FILES: '/var/run/secrets/common.yml,/var/run/secrets/adapter.yml'
+    envFromConfigmap:
+      - common
+    volFromSecret:
+      adapters-files:
+        - path: /var/run/secrets/adapter.yml
+          subPath: jci.yml
+          readOnly: true
+      common-props:
+        - path: /var/run/secrets/common.yml
+          subPath: secret-props.yml
+          readOnly: true
+    # Probes
+    livenessProbe:
+      failureThreshold: 10
+      httpGet:
+        path: /health
+        port: 28801
+      initialDelaySeconds: 10
+      periodSeconds: 10
+      successThreshold: 1
+      timeoutSeconds: 2
+    readinessProbe:
+      failureThreshold: 2
+      httpGet:
+        path: /health
+        port: 28801
+      #initialDelaySeconds: 60
+      periodSeconds: 10
+      successThreshold: 1
+      timeoutSeconds: 2
+    startupProbe:
+      failureThreshold: 60
+      httpGet:
+        path: /health
+        port: 28801
+      initialDelaySeconds: 10
+      periodSeconds: 5
+      successThreshold: 1
+      timeoutSeconds: 2
+    ## Resources
+    resources:
+      requests:
+        cpu: 200m
+        memory: 500Mi
+    service:
+      enable: false
+      ports:
+        28801: http
+
+  ssdAdapterNexusCd:
+    appName: adapter-nexus-cd
+    enable: false
+    image:
+      pullPolicy: IfNotPresent
+      repository: ssd-services/alt-p10/ssd_adapter_nexus
+      tag: 1.13.0
+    env:
+      NEXUS_TYPE: cd
+      SSD_SA_NEXUS_URL: http://ssd-proxy-ws:3001/ssd/tools/nexus-cd/ssd-adapter/
+      SSD_SA_NEXUS_ENABLE_GROUP_BLOBS: false
+      SSD_SERVER_PORT: 28806
+      SPRING_CONFIG_EXTRA_FILES: '/var/run/secrets/common.yml,/var/run/secrets/adapter.yml'
+    envFromConfigmap:
+      - common
+    volFromSecret:
+      adapters-files:
+        - path: /var/run/secrets/adapter.yml
+          subPath: ncd.yml
+          readOnly: true
+      common-props:
+        - path: /var/run/secrets/common.yml
+          subPath: secret-props.yml
+          readOnly: true
+    # Probes
+    livenessProbe:
+      failureThreshold: 10
+      httpGet:
+        path: /health
+        port: 28806
+      initialDelaySeconds: 10
+      periodSeconds: 10
+      successThreshold: 1
+      timeoutSeconds: 2
+    readinessProbe:
+      failureThreshold: 2
+      httpGet:
+        path: /health
+        port: 28806
+      #initialDelaySeconds: 60
+      periodSeconds: 10
+      successThreshold: 1
+      timeoutSeconds: 2
+    startupProbe:
+      failureThreshold: 60
+      httpGet:
+        path: /health
+        port: 28806
+      initialDelaySeconds: 10
+      periodSeconds: 5
+      successThreshold: 1
+      timeoutSeconds: 2
+    ## Resources
+    resources:
+      requests:
+        cpu: 200m
+        memory: 500Mi
+    service:
+      enable: false
+      ports:
+        28806: http
+
+  ssdAdapterNexusCi:
+    appName: adapter-nexus-ci
+    enable: false
+    image:
+      pullPolicy: IfNotPresent
+      repository: ssd-services/alt-p10/ssd_adapter_nexus
+      tag: 1.13.0
+    env:
+      NEXUS_TYPE: ci
+      SSD_SA_NEXUS_URL: https://works.domain.ru/nexus-ci/
+      SSD_SA_NEXUS_ENABLE_GROUP_BLOBS: false
+      SSD_SERVER_PORT: 28805
+      SPRING_CONFIG_EXTRA_FILES: '/var/run/secrets/common.yml,/var/run/secrets/adapter.yml'
+    envFromConfigmap:
+      - common
+    volFromSecret:
+      adapters-files:
+        - path: /var/run/secrets/adapter.yml
+          subPath: nci.yml
+          readOnly: true
+      common-props:
+        - path: /var/run/secrets/common.yml
+          subPath: secret-props.yml
+          readOnly: true
+    # Probes
+    livenessProbe:
+      failureThreshold: 10
+      httpGet:
+        path: /health
+        port: 28805
+      initialDelaySeconds: 10
+      periodSeconds: 10
+      successThreshold: 1
+      timeoutSeconds: 2
+    readinessProbe:
+      failureThreshold: 2
+      httpGet:
+        path: /health
+        port: 28805
+      #initialDelaySeconds: 60
+      periodSeconds: 10
+      successThreshold: 1
+      timeoutSeconds: 2
+    startupProbe:
+      failureThreshold: 60
+      httpGet:
+        path: /health
+        port: 28805
+      initialDelaySeconds: 10
+      periodSeconds: 5
+      successThreshold: 1
+      timeoutSeconds: 2
+    ## Resources
+    resources:
+      requests:
+        cpu: 200m
+        memory: 500Mi
+    service:
+      enable: false
+      ports:
+        28805: http
+
+  ssdAdapterSonar:
+    appName: adapter-sonar
+    enable: false
+    image:
+      pullPolicy: IfNotPresent
+      repository: ssd-services/alt-p10/ssd_adapter_sonar
+      tag: 1.13.0
+    env:
+      SSD_SA_SONAR_PROJECT_URL: https://works.domain.ru/ssd/tools/sonar/
+      SSD_SA_SONAR_URL: http://sonar.sonar.svc.cluster.local/ssd/tools/sonar/
+      SSD_SA_SONAR_WEBHOOK_JCI_NAME: Jenkins-ci
+      SSD_SA_SONAR_WEBHOOK_JCI_SECRET: 0
+      SSD_SA_SONAR_WEBHOOK_JCI_URL: http://jenkins-ci.jenkins.svc.cluster.local/jenkins-ci/sonarqube-webhook/
+      SPRING_CONFIG_EXTRA_FILES: '/var/run/secrets/common.yml,/var/run/secrets/adapter.yml'
+    envFromConfigmap:
+      - common
+    volFromSecret:
+      adapters-files:
+        - path: /var/run/secrets/adapter.yml
+          subPath: sonar.yml
+          readOnly: true
+      common-props:
+        - path: /var/run/secrets/common.yml
+          subPath: secret-props.yml
+          readOnly: true
+    # Probes
+    livenessProbe:
+      failureThreshold: 10
+      httpGet:
+        path: /health
+        port: 28804
+      initialDelaySeconds: 10
+      periodSeconds: 10
+      successThreshold: 1
+      timeoutSeconds: 2
+    readinessProbe:
+      failureThreshold: 2
+      httpGet:
+        path: /health
+        port: 28804
+      #initialDelaySeconds: 60
+      periodSeconds: 10
+      successThreshold: 1
+      timeoutSeconds: 2
+    startupProbe:
+      failureThreshold: 60
+      httpGet:
+        path: /health
+        port: 28804
+      initialDelaySeconds: 10
+      periodSeconds: 5
+      successThreshold: 1
+      timeoutSeconds: 2
+    ## Resources
+    resources:
+      requests:
+        cpu: 200m
+        memory: 500Mi
+    service:
+      enable: false
+      ports:
+        28804: http
+
+  ssdAdapterView:
+    appName: adapter-view
+    enable: false
+    image:
+      pullPolicy: IfNotPresent
+      repository: ssd-services/alt-p10/ssd_adapter_view
+      tag: 1.13.0
+    env:
+      SSD_ADAPTER_VIEW_ENDPOINT_URL: https://works.domain.ru/ssd/tools/viewwork/app/dashboards#/view/8c7ecbd0-355e-11eb-88e7-eb8f97f49f35?ssd-project-id=
+      SPRING_CONFIG_EXTRA_FILES: '/var/run/secrets/common.yml'
+    envFromConfigmap:
+      - common
+    volFromSecret:
+      common-props:
+        - path: /var/run/secrets/common.yml
+          subPath: secret-props.yml
+          readOnly: true
+    # Probes
+    livenessProbe:
+      failureThreshold: 10
+      httpGet:
+        path: /health
+        port: 28809
+      initialDelaySeconds: 10
+      periodSeconds: 10
+      successThreshold: 1
+      timeoutSeconds: 2
+    readinessProbe:
+      failureThreshold: 2
+      httpGet:
+        path: /health
+        port: 28809
+      #initialDelaySeconds: 60
+      periodSeconds: 10
+      successThreshold: 1
+      timeoutSeconds: 2
+    startupProbe:
+      failureThreshold: 60
+      httpGet:
+        path: /health
+        port: 28809
+      initialDelaySeconds: 10
+      periodSeconds: 5
+      successThreshold: 1
+      timeoutSeconds: 2
+    ## Resources
+    resources:
+      requests:
+        cpu: 200m
+        memory: 500Mi
+    service:
+      enable: false
+      ports:
+        28809: http
+
+  ssdAdapterLoad:
+    appName: adapter-load
+    enable: false
+    image:
+      pullPolicy: IfNotPresent
+      repository: ssd-services/alt-p10/ssd_adapter_load
+      tag: 1.13.0
+    env:
+      SSD_ADAPTER_LOAD_ROOT_URL: http://back.loadtest.svc.cluster.local/ssd/tools/loadtest
+      SPRING_CONFIG_EXTRA_FILES: '/var/run/secrets/common.yml,/var/run/secrets/adapter.yml'
+    envFromConfigmap:
+      - common
+    volFromSecret:
+      adapters-files:
+        - path: /var/run/secrets/adapter.yml
+          subPath: load.yml
+          readOnly: true
+      common-props:
+        - path: /var/run/secrets/common.yml
+          subPath: secret-props.yml
+          readOnly: true
+    # Probes
+    livenessProbe:
+      failureThreshold: 10
+      httpGet:
+        path: /health
+        port: 28811
+      initialDelaySeconds: 10
+      periodSeconds: 10
+      successThreshold: 1
+      timeoutSeconds: 2
+    readinessProbe:
+      failureThreshold: 2
+      httpGet:
+        path: /health
+        port: 28811
+      #initialDelaySeconds: 60
+      periodSeconds: 10
+      successThreshold: 1
+      timeoutSeconds: 2
+    startupProbe:
+      failureThreshold: 60
+      httpGet:
+        path: /health
+        port: 28811
+      initialDelaySeconds: 10
+      periodSeconds: 5
+      successThreshold: 1
+      timeoutSeconds: 2
+    ## Resources
+    resources:
+      requests:
+        cpu: 200m
+        memory: 500Mi
+    service:
+      enable: false
+      ports:
+        28811: http
+
+  ssdAdapterJazz:
+    appName: adapter-jazz
+    enable: false
+    image:
+      pullPolicy: IfNotPresent
+      repository: ssd-services/alt-p10/ssd_adapter_jazz
+      tag: 1.13.0
+    env:
+      SSD_SA_JAZZ_API_ROOT_URL: https://api.jazz.sber.ru
+      SPRING_CONFIG_EXTRA_FILES: '/var/run/secrets/common.yml,/var/run/secrets/adapter.yml'
+    envFromConfigmap:
+      - common
+    volFromSecret:
+      adapters-files:
+        - path: /var/run/secrets/adapter.yml
+          subPath: jazz.yml
+          readOnly: true
+      common-props:
+        - path: /var/run/secrets/common.yml
+          subPath: secret-props.yml
+          readOnly: true
+    # Probes
+    livenessProbe:
+      failureThreshold: 10
+      httpGet:
+        path: /health
+        port: 28812
+      initialDelaySeconds: 10
+      periodSeconds: 10
+      successThreshold: 1
+      timeoutSeconds: 2
+    readinessProbe:
+      failureThreshold: 2
+      httpGet:
+        path: /health
+        port: 28812
+      #initialDelaySeconds: 60
+      periodSeconds: 10
+      successThreshold: 1
+      timeoutSeconds: 2
+    startupProbe:
+      failureThreshold: 60
+      httpGet:
+        path: /health
+        port: 28812
+      initialDelaySeconds: 10
+      periodSeconds: 5
+      successThreshold: 1
+      timeoutSeconds: 2
+    ## Resources
+    resources:
+      requests:
+        cpu: 200m
+        memory: 500Mi
+    service:
+      enable: false
+      ports:
+        28812: http
+
+  ssdAdapterSourceControl:
+    appName: adapter-source-control
+    enable: false
+    image:
+      pullPolicy: IfNotPresent
+      repository: ssd-services/alt-p10/ssd_adapter_source_control
+      tag: 1.13.0
+    env:
+      SSD_SA_SOURCE_CONTROL_API_ROOT_URL: https://sc.target/context
+      SPRING_CONFIG_EXTRA_FILES: '/var/run/secrets/common.yml,/var/run/secrets/adapter.yml'
+    envFromConfigmap:
+      - common
+    volFromSecret:
+      adapters-files:
+        - path: /var/run/secrets/adapter.yml
+          subPath: sc.yml
+          readOnly: true
+      common-props:
+        - path: /var/run/secrets/common.yml
+          subPath: secret-props.yml
+          readOnly: true
+    ## Resources
+    resources:
+      limits:
+        cpu: 500m
+        memory: 500Mi
+      requests:
+        cpu: 200m
+        memory: 500Mi
+
+  ssdAdapterDataSpace:
+    appName: adapter-dataspace
+    enable: false
+    image:
+      pullPolicy: Always
+      repository: ssd-services/alt-p10/ssd_adapter_dataspace
+      tag: 1.13.0
+    env:
+      SSD_ADAPTER_DATASPACE_CONTEXT_URL: https://works.domain.ru/ssd/tools/dslab/service/dataspace?owner-id=
+      SPRING_CONFIG_EXTRA_FILES: '/var/run/secrets/common.yml'
+      SSD_LOGS_PROFILE: 'platform'
+    envFromConfigmap:
+      - common
+    volFromSecret:
+      common-props:
+        - path: /var/run/secrets/common.yml
+          subPath: secret-props.yml
+          readOnly: true
+    volFromCustom:
+      logs-dir:
+        mounts:
+          - mountPath: /var/log/ssd-v2/
+        volSpec:
+          emptyDir:
+            sizeLimit: 100Mi
+      web-server-tmp:
+        mounts:
+          - mountPath: /tmp
+        volSpec:
+          emptyDir:
+            sizeLimit: 100Mi
+    securityContext:
+      readOnlyRootFilesystem: true
+      runAsUser: 1000
+    ## Resources
+    resources:
+      limits:
+        cpu: 1000m
+        memory: 500Mi
+      requests:
+        cpu: 200m
+        memory: 500Mi

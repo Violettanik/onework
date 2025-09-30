@@ -1,0 +1,83 @@
+{{- $context := . }}
+{{- $fullName := include "ssd.fullname" . }}
+{{- $labels := include "ssd.labels" . }}
+{{- $selectorLabels := include "ssd.selectorLabels" . }}
+{{- with .Values.ssdSideMenuDemoApp }}
+ {{- if .enable }}
+ {{- $app := .appName }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $fullName }}-{{ $app }}
+  namespace: {{ $context.Release.Namespace }}
+  labels:
+    {{- $selectorLabels | nindent 4 }}
+data:
+  nginx.conf: |
+    worker_processes  {{ .env.NGINX_WORKER_PROCESSES }};
+    error_log  /var/log/nginx/error.log;
+    pid        /var/run/nginx/nginx.pid;
+    worker_rlimit_nofile {{ .env.NGINX_WORKER_RLIMIT_NOFILE }};
+
+    events {
+      worker_connections  {{ .env.NGINX_WORKER_CONNECTIONS }};
+    }
+
+    http {
+      include  conf/mime.types;
+      index    index.html;
+
+      default_type application/octet-stream;
+      log_format   main '$remote_addr - $remote_user [$time_local]  $status '
+        '"$request" $body_bytes_sent "$http_referer" '
+        '"$http_user_agent" "$http_x_forwarded_for"';
+      access_log   /var/log/nginx/access.log  main;
+      sendfile     on;
+      tcp_nopush   on;
+
+      # sets value to `*` if not present:
+      # default is *, but if any value exists already,
+      # the new header will have and empty value, as a result will not be set
+      map $upstream_http_access_control_allow_origin $add_wildcard_cors_if_not_exists {
+        default '*';
+        '~.' "";
+      }
+
+      server { # UI
+        listen       3000;
+        server_name  {{ .env.NGINX_UI_SERVER_NAME }};
+        access_log   /var/log/nginx/access.log  main;
+        root    /etc/nginx/html;
+        gzip on;
+        gzip_types application/json;
+        large_client_header_buffers {{ .env.NGINX_LARGE_CLIENT_HEADER_BUFFER_CONFIG }};
+
+        location / {
+          if_modified_since off;
+          add_header Last-Modified "";
+          add_header Cache-Control no-cache;
+          try_files $uri $uri/ /index.html;
+        }
+
+        location  ~ ^/(js|css|images|fonts)/ {
+          gzip_static on;
+          if_modified_since off;
+          add_header Last-Modified "";
+          add_header Cache-Control "public, max-age=31536000";
+        }
+
+        location ~ ^/?(.*\.ttf|.*\.eot|.*\.woff2|.*\.woff) {
+          add_header 'Access-Control-Allow-Origin' $add_wildcard_cors_if_not_exists;
+        }
+
+        location = /health {
+            access_log off;
+            add_header Content-Type application/json;
+            return 200 "{\"status\":\"pass\",\"releaseId\":\"1.11\",\"version\":\"1\",\"serviceId\":\"$hostname\",\"description\":\"health of ssd-ui\"}";
+        }
+      }
+    }
+
+  {{- end }}
+{{- end }}

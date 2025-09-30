@@ -1,0 +1,887 @@
+# helm template ssd-adapters package/conf/helm/application/ssd/ -n onework --output-dir out -f package/conf/helm/application/ssd/app-groups/ssd-adapters.yaml -f package/conf/helm/application/ssd/app-groups/_secrets-ssd-adapters.yaml
+# kubectl apply -f out/ssd/templates/secrets/ -n onework
+# helm upgrade --install ssd-adapters package/conf/helm/application/ssd/ -n onework -f package/conf/helm/application/ssd/app-groups/ssd-adapters.yaml
+
+createSecrets: false
+#envName: __target_env_name__
+envName: dev
+fullnameOverride: ssd
+logbackConfig:
+  create: false
+#imagePullSecrets:
+#  - name: __docker_image_pull_secret__
+
+### Adapters
+ssdAdapters:
+  enable: true
+
+ssdAdaptersConfig:
+  ssdAdapterDpm:
+    #enable: true
+    enable: false
+    image:
+      #pullPolicy: IfNotPresent
+      pullPolicy: Always
+      #repository: __image_registry_prefix__/ssd-adapter-dpm
+      repository: 192.168.139.80:5000/ssd/ssd-adapter-dpm
+      #tag: __image_tag_ssd_adapter_dpm__
+      tag: 1.13.0
+    env:
+      SSD_SA_DPM_BASE_URL: __SSD_SA_DPM_BASE_URL__
+      SSD_SA_DPM_LOGIN: __SSD_SA_DPM_LOGIN__
+      SPRING_CONFIG_EXTRA_FILES: '/var/run/secrets/common.yml,/var/run/secrets/adapter.yml'
+    envFromConfigmap:
+      - common
+    volFromSecret:
+      adapters-files:
+        - path: /var/run/secrets/adapter.yml
+          subPath: dpm.yml
+          readOnly: true
+      common-props:
+        - path: /var/run/secrets/common.yml
+          subPath: secret-props.yml
+          readOnly: true
+    volFromCustom:
+      logs-dir:
+        mounts:
+          - mountPath: /var/log/ssd-v2/
+        volSpec:
+          emptyDir:
+            sizeLimit: 100Mi
+      web-server-tmp:
+        mounts:
+          - mountPath: /tmp
+        volSpec:
+          emptyDir:
+            sizeLimit: 100Mi
+    securityContext:
+#      readOnlyRootFilesystem: true
+      readOnlyRootFilesystem: false
+      runAsUser: 10001
+      runAsGroup: 10001
+      runAsNonRoot: true
+      privileged: false
+      allowPrivilegeEscalation: false
+      capabilities:
+        add: []
+        drop:
+          - all
+      seccompProfile:
+        type: RuntimeDefault
+    podSpec:
+      securityContext:
+        fsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+    ## Resources
+    resources:
+      limits:
+        cpu: 1000m
+        memory: 500Mi
+      requests:
+        cpu: 200m
+        memory: 300Mi
+
+  ssdAdapterFose:
+    #enable: true
+    enable: false
+    image:
+      #pullPolicy: IfNotPresent      
+      pullPolicy: Always
+      #repository: __image_registry_prefix__/ssd-adapter-fose
+      repository: 192.168.139.80:5000/ssd/ssd-adapter-fose
+      #tag: __image_tag_ssd_adapter_fose__
+      tag: 1.13.0
+    env:
+      SSD_SA_FOSE_BASE_URL: __SSD_SA_FOSE_BASE_URL__
+      SSD_SA_FOSE_ENDPOINT_URL: __SSD_SA_FOSE_ENDPOINT_URL__ # Например, https://works.domain.ru/ssd/tools/fose/
+      SSD_SA_FOSE_NESTING_LEVEL: "4"
+      SPRING_CONFIG_EXTRA_FILES: '/var/run/secrets/common.yml,/var/run/secrets/adapter.yml'
+    envFromConfigmap:
+      - common
+    volFromSecret:
+      adapters-files:
+        - path: /var/run/secrets/adapter.yml
+          subPath: fose.yml
+          readOnly: true
+      common-props:
+        - path: /var/run/secrets/common.yml
+          subPath: secret-props.yml
+          readOnly: true
+    volFromCustom:
+      logs-dir:
+        mounts:
+          - mountPath: /var/log/ssd-v2/
+        volSpec:
+          emptyDir:
+            sizeLimit: 100Mi
+      web-server-tmp:
+        mounts:
+          - mountPath: /tmp
+        volSpec:
+          emptyDir:
+            sizeLimit: 100Mi
+    securityContext:
+#      readOnlyRootFilesystem: true
+      readOnlyRootFilesystem: false
+      runAsUser: 10001
+      runAsGroup: 10001
+      runAsNonRoot: true
+      privileged: false
+      allowPrivilegeEscalation: false
+      capabilities:
+        add: []
+        drop:
+          - all
+      seccompProfile:
+        type: RuntimeDefault
+    podSpec:
+      securityContext:
+        fsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+    ## Resources
+    resources:
+      limits:
+        cpu: 1000m
+        memory: 500Mi
+      requests:
+        cpu: 200m
+        memory: 300Mi
+
+  ssdAdapterGitlab:
+    #enable: true
+    enable: false
+    image:
+      #pullPolicy: IfNotPresent
+      pullPolicy: Always
+      #repository: __image_registry_prefix__/ssd-adapter-gitlab
+      repository: 192.168.139.80:5000/ssd/ssd-adapter-gitlab
+      #tag: __image_tag_ssd_adapter_gitlab__
+      tag: 1.13.0
+    env:
+      SSD_SA_GITLAB_URL: __SSD_SA_GITLAB_URL__ # Например, https://works.domain.ru/ssd/tools/track/
+      SPRING_CONFIG_EXTRA_FILES: '/var/run/secrets/common.yml,/var/run/secrets/adapter.yml'
+    envFromConfigmap:
+      - common
+    volFromSecret:
+      adapters-files:
+        - path: /var/run/secrets/adapter.yml
+          subPath: gitlab.yml
+          readOnly: true
+      common-props:
+        - path: /var/run/secrets/common.yml
+          subPath: secret-props.yml
+          readOnly: true
+    volFromCustom:
+      logs-dir:
+        mounts:
+          - mountPath: /var/log/ssd-v2/
+        volSpec:
+          emptyDir:
+            sizeLimit: 100Mi
+      web-server-tmp:
+        mounts:
+          - mountPath: /tmp
+        volSpec:
+          emptyDir:
+            sizeLimit: 100Mi
+    securityContext:
+#      readOnlyRootFilesystem: true
+      readOnlyRootFilesystem: false
+      runAsUser: 10001
+      runAsGroup: 10001
+      runAsNonRoot: true
+      privileged: false
+      allowPrivilegeEscalation: false
+      capabilities:
+        add: []
+        drop:
+          - all
+      seccompProfile:
+        type: RuntimeDefault
+    podSpec:
+      securityContext:
+        fsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+    ## Resources
+    resources:
+      limits:
+        cpu: 1000m
+        memory: 500Mi
+      requests:
+        cpu: 200m
+        memory: 300Mi
+
+  ssdAdapterJenkinsCd:
+    #enable: true
+    enable: false
+    image:
+      #pullPolicy: IfNotPresent
+      pullPolicy: Always      
+      #repository: __image_registry_prefix__/ssd-adapter-jenkins
+      repository: 192.168.139.80:5000/ssd/ssd-adapter-jenkins
+      #tag: __image_tag_ssd_adapter_jcd__
+      tag: 1.13.0
+    env:
+      JENKINS_TYPE: cd
+      SSD_SA_JENKINS_URL: __SSD_SA_JENKINS_CD_URL__
+      SPRING_CONFIG_EXTRA_FILES: '/var/run/secrets/common.yml,/var/run/secrets/adapter.yml'
+      SSD_SA_JENKINS_SCRIPTS_ROLE_CREATION: 'file:/var/run/secrets/jenkins-role-creation-template.groovy.template'
+    envFromConfigmap:
+      - common
+    volFromSecret:
+      adapters-files:
+        - path: /var/run/secrets/adapter.yml
+          subPath: jcd.yml
+          readOnly: true
+        - path: /var/run/secrets/jenkins-role-creation-template.groovy.template
+          subPath: jenkins-role-creation-template.groovy.template
+          readOnly: true
+      common-props:
+        - path: /var/run/secrets/common.yml
+          subPath: secret-props.yml
+          readOnly: true
+    volFromCustom:
+      logs-dir:
+        mounts:
+          - mountPath: /var/log/ssd-v2/
+        volSpec:
+          emptyDir:
+            sizeLimit: 100Mi
+      web-server-tmp:
+        mounts:
+          - mountPath: /tmp
+        volSpec:
+          emptyDir:
+            sizeLimit: 100Mi
+    securityContext:
+#      readOnlyRootFilesystem: true
+      readOnlyRootFilesystem: false
+      runAsUser: 10001
+      runAsGroup: 10001
+      runAsNonRoot: true
+      privileged: false
+      allowPrivilegeEscalation: false
+      capabilities:
+        add: []
+        drop:
+          - all
+      seccompProfile:
+        type: RuntimeDefault
+    podSpec:
+      securityContext:
+        fsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+    ## Resources
+    resources:
+      limits:
+        cpu: 1000m
+        memory: 500Mi
+      requests:
+        cpu: 200m
+        memory: 300Mi
+
+  ssdAdapterJenkinsCi:
+    #enable: true
+    enable: false
+    image:
+      #pullPolicy: IfNotPresent
+      pullPolicy: Always      
+      #repository: __image_registry_prefix__/ssd-adapter-jenkins
+      repository: 192.168.139.80:5000/ssd/ssd-adapter-jenkins
+      #tag: __image_tag_ssd_adapter_jci__
+      tag: 1.13.0
+    env:
+      JENKINS_TYPE: ci
+      SSD_SA_JENKINS_URL: __SSD_SA_JENKINS_CI_URL__
+      SPRING_CONFIG_EXTRA_FILES: '/var/run/secrets/common.yml,/var/run/secrets/adapter.yml'
+    envFromConfigmap:
+      - common
+    volFromSecret:
+      adapters-files:
+        - path: /var/run/secrets/adapter.yml
+          subPath: jci.yml
+          readOnly: true
+      common-props:
+        - path: /var/run/secrets/common.yml
+          subPath: secret-props.yml
+          readOnly: true
+    volFromCustom:
+      logs-dir:
+        mounts:
+          - mountPath: /var/log/ssd-v2/
+        volSpec:
+          emptyDir:
+            sizeLimit: 100Mi
+      web-server-tmp:
+        mounts:
+          - mountPath: /tmp
+        volSpec:
+          emptyDir:
+            sizeLimit: 100Mi
+    securityContext:
+#      readOnlyRootFilesystem: true
+      readOnlyRootFilesystem: false
+      runAsUser: 10001
+      runAsGroup: 10001
+      runAsNonRoot: true
+      privileged: false
+      allowPrivilegeEscalation: false
+      capabilities:
+        add: []
+        drop:
+          - all
+      seccompProfile:
+        type: RuntimeDefault
+    podSpec:
+      securityContext:
+        fsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+    ## Resources
+    resources:
+      limits:
+        cpu: 1000m
+        memory: 500Mi
+      requests:
+        cpu: 200m
+        memory: 300Mi
+
+  ssdAdapterNexusCd:
+    #enable: true
+    enable: false
+    image:
+      #pullPolicy: IfNotPresent
+      pullPolicy: Always      
+      #repository: __image_registry_prefix__/ssd-adapter-nexus
+      repository: 192.168.139.80:5000/ssd/ssd-adapter-nexus
+      #tag: __image_tag_ssd_adapter_ncd__
+      tag: 1.13.0
+    env:
+      NEXUS_TYPE: cd
+      SSD_SA_NEXUS_URL: __SSD_SA_NEXUS_CD_URL__
+      SSD_SA_NEXUS_ENABLE_GROUP_BLOBS: false
+      SSD_SA_NEXUS_REPO_WRITE_POLICY_CONFIG: '{"maven": "allow_once", "docker": "allow_once"}'
+      SPRING_CONFIG_EXTRA_FILES: '/var/run/secrets/common.yml,/var/run/secrets/adapter.yml'
+    envFromConfigmap:
+      - common
+    volFromSecret:
+      adapters-files:
+        - path: /var/run/secrets/adapter.yml
+          subPath: ncd.yml
+          readOnly: true
+      common-props:
+        - path: /var/run/secrets/common.yml
+          subPath: secret-props.yml
+          readOnly: true
+    volFromCustom:
+      logs-dir:
+        mounts:
+          - mountPath: /var/log/ssd-v2/
+        volSpec:
+          emptyDir:
+            sizeLimit: 100Mi
+      web-server-tmp:
+        mounts:
+          - mountPath: /tmp
+        volSpec:
+          emptyDir:
+            sizeLimit: 100Mi
+    securityContext:
+#      readOnlyRootFilesystem: true
+      readOnlyRootFilesystem: false
+      runAsUser: 10001
+      runAsGroup: 10001
+      runAsNonRoot: true
+      privileged: false
+      allowPrivilegeEscalation: false
+      capabilities:
+        add: []
+        drop:
+          - all
+      seccompProfile:
+        type: RuntimeDefault
+    podSpec:
+      securityContext:
+        fsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+    ## Resources
+    resources:
+      limits:
+        cpu: 1000m
+        memory: 500Mi
+      requests:
+        cpu: 200m
+        memory: 300Mi
+
+  ssdAdapterNexusCi:
+    #enable: true
+    enable: false
+    image:
+      #pullPolicy: IfNotPresent
+      pullPolicy: Always      
+      #repository: __image_registry_prefix__/ssd-adapter-nexus
+      repository: 192.168.139.80:5000/ssd/ssd-adapter-nexus
+      #tag: __image_tag_ssd_adapter_nci__
+      tag: 1.13.0
+    env:
+      NEXUS_TYPE: ci
+      SSD_SA_NEXUS_URL: __SSD_SA_NEXUS_CI_URL__
+      SSD_SA_NEXUS_ENABLE_GROUP_BLOBS: false
+      SSD_SA_NEXUS_REPO_WRITE_POLICY_CONFIG: '{"maven": "allow", "helm": "allow"}'
+      SPRING_CONFIG_EXTRA_FILES: '/var/run/secrets/common.yml,/var/run/secrets/adapter.yml'
+    envFromConfigmap:
+      - common
+    volFromSecret:
+      adapters-files:
+        - path: /var/run/secrets/adapter.yml
+          subPath: nci.yml
+          readOnly: true
+      common-props:
+        - path: /var/run/secrets/common.yml
+          subPath: secret-props.yml
+          readOnly: true
+    volFromCustom:
+      logs-dir:
+        mounts:
+          - mountPath: /var/log/ssd-v2/
+        volSpec:
+          emptyDir:
+            sizeLimit: 100Mi
+      web-server-tmp:
+        mounts:
+          - mountPath: /tmp
+        volSpec:
+          emptyDir:
+            sizeLimit: 100Mi
+    securityContext:
+#      readOnlyRootFilesystem: true
+      readOnlyRootFilesystem: false
+      runAsUser: 10001
+      runAsGroup: 10001
+      runAsNonRoot: true
+      privileged: false
+      allowPrivilegeEscalation: false
+      capabilities:
+        add: []
+        drop:
+          - all
+      seccompProfile:
+        type: RuntimeDefault
+    podSpec:
+      securityContext:
+        fsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+    ## Resources
+    resources:
+      limits:
+        cpu: 1000m
+        memory: 500Mi
+      requests:
+        cpu: 200m
+        memory: 300Mi
+
+  ssdAdapterSonar:
+    #enable: true
+    enable: false
+    image:
+      #pullPolicy: IfNotPresent
+      pullPolicy: Always      
+      #repository: __image_registry_prefix__/ssd-adapter-sonar
+      repository: 192.168.139.80:5000/ssd/ssd-adapter-sonar
+      tag: 1.13.0
+      #tag: __image_tag_ssd_adapter_snr__
+    env:
+      SSD_SA_SONAR_PROJECT_URL: __SSD_SA_SONAR_PROJECT_URL__ # Например, https://works.domain.ru/ssd/tools/sonar/
+      SSD_SA_SONAR_URL: __SSD_SA_SONAR_URL__
+      SPRING_CONFIG_EXTRA_FILES: '/var/run/secrets/common.yml,/var/run/secrets/adapter.yml'
+    envFromConfigmap:
+      - common
+    volFromSecret:
+      adapters-files:
+        - path: /var/run/secrets/adapter.yml
+          subPath: sonar.yml
+          readOnly: true
+      common-props:
+        - path: /var/run/secrets/common.yml
+          subPath: secret-props.yml
+          readOnly: true
+    volFromCustom:
+      logs-dir:
+        mounts:
+          - mountPath: /var/log/ssd-v2/
+        volSpec:
+          emptyDir:
+            sizeLimit: 100Mi
+      web-server-tmp:
+        mounts:
+          - mountPath: /tmp
+        volSpec:
+          emptyDir:
+            sizeLimit: 100Mi
+    securityContext:
+#      readOnlyRootFilesystem: true
+      readOnlyRootFilesystem: false
+      runAsUser: 10001
+      runAsGroup: 10001
+      runAsNonRoot: true
+      privileged: false
+      allowPrivilegeEscalation: false
+      capabilities:
+        add: []
+        drop:
+          - all
+      seccompProfile:
+        type: RuntimeDefault
+    podSpec:
+      securityContext:
+        fsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+    ## Resources
+    resources:
+      limits:
+        cpu: 1000m
+        memory: 500Mi
+      requests:
+        cpu: 100m
+        memory: 300Mi
+
+  ssdAdapterView:
+    #enable: true
+    enable: false
+    image:
+      #pullPolicy: IfNotPresent
+      pullPolicy: Always
+      #repository: __image_registry_prefix__/ssd-adapter-view
+      repository: 192.168.139.80:5000/ssd/ssd-adapter-view
+      tag: 1.13.0
+      #tag: __image_tag_ssd_adapter_view__
+    env:
+      ssd-adapter-VIEW_ENDPOINT_URL: __SSD_ADAPTER_VIEW_ENDPOINT_URL__ # https://works.domain.ru/ssd/tools/viewwork/app/dashboards#/view/8c7ecbd0-355e-11eb-88e7-eb8f97f49f35?ssd-project-id=
+      SPRING_CONFIG_EXTRA_FILES: '/var/run/secrets/common.yml'
+    envFromConfigmap:
+      - common
+    volFromSecret:
+      common-props:
+        - path: /var/run/secrets/common.yml
+          subPath: secret-props.yml
+          readOnly: true
+    volFromCustom:
+      logs-dir:
+        mounts:
+          - mountPath: /var/log/ssd-v2/
+        volSpec:
+          emptyDir:
+            sizeLimit: 100Mi
+      web-server-tmp:
+        mounts:
+          - mountPath: /tmp
+        volSpec:
+          emptyDir:
+            sizeLimit: 100Mi
+    securityContext:
+#      readOnlyRootFilesystem: true
+      readOnlyRootFilesystem: false
+      runAsUser: 10001
+      runAsGroup: 10001
+      runAsNonRoot: true
+      privileged: false
+      allowPrivilegeEscalation: false
+      capabilities:
+        add: []
+        drop:
+          - all
+      seccompProfile:
+        type: RuntimeDefault
+    podSpec:
+      securityContext:
+        fsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+    ## Resources
+    resources:
+      limits:
+        cpu: 1000m
+        memory: 500Mi
+      requests:
+        cpu: 200m
+        memory: 300Mi
+
+  ssdAdapterLoad:
+    appName: adapter-load
+    #enable: true
+    enable: false
+    image:
+      #pullPolicy: IfNotPresent
+      pullPolicy: Always
+      #repository: __image_registry_prefix__/ssd-adapter-load
+      repository: 192.168.139.80:5000/ssd/ssd-adapter-load
+      tag: 1.13.0
+      #tag: __image_tag_ssd_adapter_load__
+    env:
+      SSD_ADAPTER_LOAD_ROOT_URL: __SSD_ADAPTER_LOAD_ROOT_URL__ # http://back.loadtest.svc.cluster.local/ssd/tools/loadtest
+      SPRING_CONFIG_EXTRA_FILES: '/var/run/secrets/common.yml,/var/run/secrets/adapter.yml'
+    envFromConfigmap:
+      - common
+    volFromSecret:
+      adapters-files:
+        - path: /var/run/secrets/adapter.yml
+          subPath: load.yml
+          readOnly: true
+      common-props:
+        - path: /var/run/secrets/common.yml
+          subPath: secret-props.yml
+          readOnly: true
+    volFromCustom:
+      logs-dir:
+        mounts:
+          - mountPath: /var/log/ssd-v2/
+        volSpec:
+          emptyDir:
+            sizeLimit: 100Mi
+      web-server-tmp:
+        mounts:
+          - mountPath: /tmp
+        volSpec:
+          emptyDir:
+            sizeLimit: 100Mi
+    securityContext:
+#      readOnlyRootFilesystem: true
+      readOnlyRootFilesystem: false
+      runAsUser: 10001
+      runAsGroup: 10001
+      runAsNonRoot: true
+      privileged: false
+      allowPrivilegeEscalation: false
+      capabilities:
+        add: []
+        drop:
+          - all
+      seccompProfile:
+        type: RuntimeDefault
+    podSpec:
+      securityContext:
+        fsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+    ## Resources
+    resources:
+      limits:
+        cpu: 500m
+        memory: 500Mi
+      requests:
+        cpu: 200m
+        memory: 300Mi
+
+  ssdAdapterJazz:
+    appName: adapter-jazz
+    #enable: true
+    enable: false
+    image:
+      #pullPolicy: IfNotPresent
+      pullPolicy: Always
+      #repository: __image_registry_prefix__/ssd-adapter-jazz
+      repository: 192.168.139.80:5000/ssd/ssd-adapter-jazz
+      tag: 1.13.0
+      #tag: __image_tag_ssd_adapter_jazz__
+    env:
+      SSD_SA_JAZZ_API_ROOT_URL: __SSD_SA_JAZZ_API_ROOT_URL__ # https://api.jazz.sber.ru
+      SPRING_CONFIG_EXTRA_FILES: '/var/run/secrets/common.yml,/var/run/secrets/adapter.yml,/var/run/secrets/db.yml'
+    envFromConfigmap:
+      - common
+    volFromSecret:
+      adapters-files:
+        - path: /var/run/secrets/adapter.yml
+          subPath: jazz.yml
+          readOnly: true
+      common-props:
+        - path: /var/run/secrets/common.yml
+          subPath: secret-props.yml
+          readOnly: true
+    common-db-props:
+      - path: /var/run/secrets/db.yml
+        subPath: secret-props.yml
+        readOnly: true
+    volFromCustom:
+      logs-dir:
+        mounts:
+          - mountPath: /var/log/ssd-v2/
+        volSpec:
+          emptyDir:
+            sizeLimit: 100Mi
+      web-server-tmp:
+        mounts:
+          - mountPath: /tmp
+        volSpec:
+          emptyDir:
+            sizeLimit: 100Mi
+    securityContext:
+#      readOnlyRootFilesystem: true
+      readOnlyRootFilesystem: false
+      runAsUser: 10001
+      runAsGroup: 10001
+      runAsNonRoot: true
+      privileged: false
+      allowPrivilegeEscalation: false
+      capabilities:
+        add: []
+        drop:
+          - all
+      seccompProfile:
+        type: RuntimeDefault
+    podSpec:
+      securityContext:
+        fsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+    resources:
+      limits:
+        cpu: 500m
+        memory: 500Mi
+      requests:
+        cpu: 200m
+        memory: 500Mi
+    service:
+      enable: true
+      ports:
+        28812: http
+    podSecurityContext:
+      fsGroup: 10001
+
+  ssdAdapterSourceControl:
+    appName: adapter-source-control
+    enable: false
+    image:
+      #pullPolicy: IfNotPresent
+      pullPolicy: Always
+      #repository: __image_registry_prefix__/ssd-adapter-source-control
+      repository: 192.168.139.80:5000/ssd/ssd-adapter-source-control
+      tag: 1.13.0
+      #tag: __image_tag_ssd_adapter_sc__
+    env:
+      SC_KEY: sc
+      SSD_SA_SOURCE_CONTROL_API_ROOT_URL: __SSD_SA_SOURCE_CONTROL_API_ROOT_URL__ # https://sc.sc.svc.cluster.local/ssd/tools/sc
+      SPRING_CONFIG_EXTRA_FILES: '/var/run/secrets/common.yml,/var/run/secrets/adapter.yml'
+      SSD_SA_SOURCE_CONTROL_LINKS_OVERRIDE_ORIGINAL_PREFIX: 'https://sc.works.domain.ru'
+      SSD_SA_SOURCE_CONTROL_LINKS_OVERRIDE_TARGET_PREFIX: 'https://works.domain.ru'
+    envFromConfigmap:
+      - common
+    ## Resources
+    resources:
+      limits:
+        cpu: 500m
+        memory: 500Mi
+      requests:
+        cpu: 200m
+        memory: 500Mi
+    volFromSecret:
+      adapters-files:
+        - path: /var/run/secrets/adapter.yml
+          subPath: sc.yml
+          readOnly: true
+      common-props:
+        - path: /var/run/secrets/common.yml
+          subPath: secret-props.yml
+          readOnly: true
+    volFromCustom:
+      logs-dir:
+        mounts:
+          - mountPath: /var/log/ssd-v2/
+        volSpec:
+          emptyDir:
+            sizeLimit: 100Mi
+      web-server-tmp:
+        mounts:
+          - mountPath: /tmp
+        volSpec:
+          emptyDir:
+            sizeLimit: 100Mi
+    securityContext:
+#      readOnlyRootFilesystem: true
+      readOnlyRootFilesystem: false
+      runAsUser: 10001
+      runAsGroup: 10001
+      runAsNonRoot: true
+      privileged: false
+      allowPrivilegeEscalation: false
+      capabilities:
+        add: []
+        drop:
+          - all
+      seccompProfile:
+        type: RuntimeDefault
+    podSpec:
+      securityContext:
+        fsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+
+# STUB ADAPTER TO INTEGRATE TOOLS VIA DIRECT LINK SAVING
+#  ssdAdapterToolkeyStub:
+#    enable: true
+#    appName: adater-dops-stub
+#    image:
+#      pullPolicy: IfNotPresent
+#      repository: __image_registry_prefix__/ssd-adapter-stub
+#      tag: __image_tag_ssd_adapter_stub__
+#    env:
+#      SPRING_CONFIG_EXTRA_FILES: '/var/run/secrets/common.yml'
+#      SSD_SA_STUB_TOOL_KEY: toolkey
+#      SSD_LOGS_PROFILE: 'platform'
+#      SSD_SERVER_PORT: 28815
+#    envFromConfigmap:
+#      - common
+#    volFromSecret:
+#      common-props:
+#        - path: /var/run/secrets/common.yml
+#          subPath: secret-props.yml
+#          readOnly: true
+#    volFromCustom:
+#      logs-dir:
+#        mounts:
+#          - mountPath: /var/log/ssd-v2/
+#        volSpec:
+#          emptyDir:
+#            sizeLimit: 100Mi
+#      web-server-tmp:
+#        mounts:
+#          - mountPath: /tmp
+#        volSpec:
+#          emptyDir:
+#            sizeLimit: 100Mi
+#    securityContext:
+#      readOnlyRootFilesystem: true
+#      runAsUser: 10001
+#      runAsGroup: 10001
+#      runAsNonRoot: true
+#      privileged: false
+#      allowPrivilegeEscalation: false
+#      capabilities:
+#        add: []
+#        drop:
+#          - all
+#      seccompProfile:
+#        type: RuntimeDefault
+#    podSpec:
+#      securityContext:
+#        fsGroup: 10001
+#        seccompProfile:
+#          type: RuntimeDefault
+#    service:
+#      enable: true
+#      ports:
+#        28815: http
+#    resources:
+#      limits:
+#        cpu: 500m
+#        memory: 500Mi
+#      requests:
+#        cpu: 200m
+#        memory: 500Mi
+

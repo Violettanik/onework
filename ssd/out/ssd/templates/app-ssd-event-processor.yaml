@@ -1,0 +1,145 @@
+---
+# Source: ssd/templates/app-ssd-event-processor.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: ssd-event-processor
+  namespace: onework2
+  labels:
+    helm.sh/chart: ssd-3.3.0
+    env: dev
+    app.kubernetes.io/name: ssd
+    app.kubernetes.io/instance: ssd-core
+    app.kubernetes.io/version: "1.16.x"
+    app.kubernetes.io/managed-by: Helm
+    app: event-processor
+spec:
+  ports:
+  - name: http
+    port: 28889
+    targetPort: 28889
+  selector:
+    env: dev
+    app.kubernetes.io/name: ssd
+    app: event-processor
+---
+# Source: ssd/templates/app-ssd-event-processor.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ssd-event-processor
+  namespace: onework2
+  labels:
+    helm.sh/chart: ssd-3.3.0
+    env: dev
+    app.kubernetes.io/name: ssd
+    app.kubernetes.io/instance: ssd-core
+    app.kubernetes.io/version: "1.16.x"
+    app.kubernetes.io/managed-by: Helm
+    app: event-processor
+spec:
+  replicas: 1
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels:
+      env: dev
+      app.kubernetes.io/name: ssd
+      app: event-processor
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: "25%"
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        env: dev
+        app.kubernetes.io/name: ssd
+        app: event-processor
+    spec:
+      automountServiceAccountToken: false
+      containers:
+      - name: event-processor
+        image: 192.168.139.80:5000/ssd/ssd-event-processor:1.13.0
+        imagePullPolicy: Always
+        env:
+        # ENV-vars
+        - name: SPRING_CONFIG_EXTRA_FILES
+          value: "/var/run/secrets/common.yml,/var/run/secrets/db.yml"
+        - name: SSD_CLOUD_GATEWAY_ROOT_URL
+          value: "http://ssd-cloud-gateway:8080"
+        - name: SSD_ENABLE_EVENT_PRODUCING
+          value: "true"
+        envFrom:
+        # ENV-vars from CM
+        - configMapRef:
+            name: ssd-common
+        ports:
+        - containerPort: 28889
+          name: http
+        # Resources
+        resources:
+          limits:
+            cpu: 500m
+            memory: 500Mi
+          requests:
+            cpu: 500m
+            memory: 500Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            add: []
+            drop:
+            - all
+          privileged: false
+          readOnlyRootFilesystem: false
+          runAsGroup: 10001
+          runAsNonRoot: true
+          runAsUser: 10001
+          seccompProfile:
+            type: RuntimeDefault
+        # Volumes
+        volumeMounts:
+        # Mount from Secrets
+        - mountPath: /var/run/secrets/db.yml
+          name: secret-common-db-props
+          readOnly: true
+          subPath: secret-props.yml
+        - mountPath: /var/run/secrets/common.yml
+          name: secret-common-props
+          readOnly: true
+          subPath: secret-props.yml
+        # Mount from Custom
+        - mountPath: /var/log/ssd-v2/
+          name: logs-dir
+        - mountPath: /tmp
+          name: web-server-tmp
+      volumes:
+      # Volumes Secrets
+      - name: secret-common-db-props
+        secret:
+          secretName: ssd-common-db-props
+          defaultMode: 256
+          items:
+          - key: secret-props.yml
+            path: secret-props.yml
+      - name: secret-common-props
+        secret:
+          secretName: ssd-common-props
+          defaultMode: 256
+          items:
+          - key: secret-props.yml
+            path: secret-props.yml
+      # Volumes Custom
+      - name: logs-dir
+        emptyDir:
+          sizeLimit: 100Mi
+      - name: web-server-tmp
+        emptyDir:
+          sizeLimit: 100Mi
+      # End of Volumes
+      ## podSpec
+      securityContext:
+        fsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault

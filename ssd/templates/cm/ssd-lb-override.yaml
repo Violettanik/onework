@@ -1,0 +1,3161 @@
+{{- $context := . }}
+  {{- $fullName := include "ssd.fullname" . }}
+  {{- $labels := include "ssd.labels" . }}
+  {{- $selectorLabels := include "ssd.selectorLabels" . }}
+  {{- with .Values.ssdTransactionManager }}
+  {{- if .enable }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $fullName }}-lb-override
+  namespace: {{ $context.Release.Namespace }}
+  labels:
+    {{- $labels | nindent 4 }}
+data:
+  database-change-log.xml: |
+    <?xml version="1.0" encoding="UTF-8"?>
+    <databaseChangeLog xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                       xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+                       xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.5.xsd">
+        <include file="lb-ssd-db-02.sql" relativeToChangelogFile="true"/>
+        <include file="lb-ssd-db-03.sql" relativeToChangelogFile="true"/>
+        <include file="lb-ssd-db-04.sql" relativeToChangelogFile="true"/>
+        <include file="lb-ssd-db-05.sql" relativeToChangelogFile="true"/>
+        <include file="lb-ssd-db-06.sql" relativeToChangelogFile="true"/>
+        <include file="lb-ssd-db-07.sql" relativeToChangelogFile="true"/>
+        <include file="lb-ssd-db-08.sql" relativeToChangelogFile="true"/>
+        <include file="lb-ssd-db-09.sql" relativeToChangelogFile="true"/>
+        <include file="lb-ssd-db-10.sql" relativeToChangelogFile="true"/>
+        <include file="lb-ssd-db-11.sql" relativeToChangelogFile="true"/>
+        <include file="lb-ssd-db-12.sql" relativeToChangelogFile="true"/>
+        <include file="lb-ssd-db-13.sql" relativeToChangelogFile="true"/>
+        <include file="lb-ssd-db-14.sql" relativeToChangelogFile="true"/>
+        <include file="lb-ssd-db-15.sql" relativeToChangelogFile="true"/>
+        <include file="lb-ssd-db-16.sql" relativeToChangelogFile="true"/>
+        <include file="lb-ssd-db-17.sql" relativeToChangelogFile="true"/>
+        <include file="lb-ssd-db-18.sql" relativeToChangelogFile="true"/>
+        <include file="lb-ssd-db-19.sql" relativeToChangelogFile="true"/>
+        <include file="lb-ssd-db-20.sql" relativeToChangelogFile="true"/>
+        <include file="lb-ssd-db-21.sql" relativeToChangelogFile="true"/>
+        <include file="lb-ssd-db-22.sql" relativeToChangelogFile="true"/>
+        <include file="lb-ssd-db-23.sql" relativeToChangelogFile="true"/>
+        <include file="lb-ssd-db-24.sql" relativeToChangelogFile="true"/>
+        <include file="lb-ssd-db-25.sql" relativeToChangelogFile="true"/>
+        <include file="lb-ssd-db-26.sql" relativeToChangelogFile="true"/>
+        <include file="lb-ssd-db-27.sql" relativeToChangelogFile="true"/>
+        <include file="lb-ssd-db-28.sql" relativeToChangelogFile="true"/>
+        <include file="lb-ssd-db-29.sql" relativeToChangelogFile="true"/>
+        <include file="lb-ssd-db-30.sql" relativeToChangelogFile="true"/>
+        <include file="lb-ssd-db-31.sql" relativeToChangelogFile="true"/>
+        <include file="lb-ssd-db-32.sql" relativeToChangelogFile="true"/>
+        <include file="lb-ssd-db-33.sql" relativeToChangelogFile="true"/>
+        <include file="lb-ssd-db-34.sql" relativeToChangelogFile="true"/>
+        <include file="lb-ssd-db-35.sql" relativeToChangelogFile="true"/>
+        <include file="lb-ssd-db-36.sql" relativeToChangelogFile="true"/>
+        <include file="lb-ssd-db-37.sql" relativeToChangelogFile="true"/>
+        <include file="lb-ssd-db-38.sql" relativeToChangelogFile="true"/>
+        <include file="lb-ssd-db-39.sql" relativeToChangelogFile="true"/>
+        <include file="lb-ssd-db-40.sql" relativeToChangelogFile="true"/>
+        <include file="lb-ssd-db-41.sql" relativeToChangelogFile="true"/>
+        <include file="lb-ssd-db-42.sql" relativeToChangelogFile="true"/>
+        <include file="lb-ssd-db-43.sql" relativeToChangelogFile="true"/>
+        <include file="lb-ssd-db-44.sql" relativeToChangelogFile="true"/>
+        <include file="lb-ssd-db-45.sql" relativeToChangelogFile="true"/>
+        <include file="lb-ssd-db-46.sql" relativeToChangelogFile="true"/>
+        <include file="lb-ssd-db-47.sql" relativeToChangelogFile="true"/>
+        <include file="lb-ssd-db-48.sql" relativeToChangelogFile="true"/>
+        <include file="lb-ssd-db-49.sql" relativeToChangelogFile="true"/>
+    </databaseChangeLog>
+  lb-ssd-db-02.sql: |
+    -- create schema if not exists ssd;
+    -- alter schema ssd owner to ssd;
+
+    ------------------------------------------------
+    -- Тип данных
+    --
+    create table if not exists ssd.data_type
+    (
+        "data_type_id"   bigserial
+            constraint data_type_pk primary key,
+        "data_type_name" text                                  not null,
+        "java_class"     text default 'java.util.String'::text not null,
+        description      text
+    );
+
+    alter table ssd.data_type
+        owner to ssd;
+    create sequence if not exists ssd."data_type_dataTypeId_seq";
+    alter sequence ssd."data_type_dataTypeId_seq" owner to ssd;
+    alter sequence ssd."data_type_dataTypeId_seq" owned by data_type."data_type_id";
+
+    ------------------------------------------------
+    -- Настройки системы
+    --
+    create table if not exists ssd.app_property
+    (
+        p_key        text   not null
+            constraint app_property_pk primary key,
+        p_value      text   not null,
+        data_type_id bigint not null
+            constraint app_property_data_type_fk
+                references ssd.data_type on update cascade on delete cascade
+    );
+
+    alter table ssd.app_property
+        owner to ssd;
+
+    create unique index if not exists app_property_p_key_uindex on ssd.app_property (p_key);
+
+    ------------------------------------------------
+    -- Справочник допустимых имён в ssd.v2_project_property
+    --
+    create table if not exists ssd.v2_property_key
+    (
+        v2_p_key      text not null
+            constraint v2_property_key_pk primary key,
+        description   text,
+        regex_pattern text,
+        data_type_id  bigint default 3
+            constraint v2_property_key_dt_fk
+                references ssd.data_type on update cascade on delete cascade
+    );
+
+    alter table ssd.v2_property_key
+        owner to ssd;
+
+    ------------------------------------------------
+    -- Бандлы (тарифные планы)
+    --
+    create table if not exists ssd.v2_bundle
+    (
+        v2_bundle_key  text not null
+            constraint v2_bundle_pk primary key,
+        v2_bundle_name text not null,
+        is_active boolean not null default true,
+        description text
+    );
+
+    alter table ssd.v2_bundle
+        owner to ssd;
+
+    ------------------------------------------------
+    -- Проекты (папки)
+    --
+    create table if not exists ssd.v2_project
+    (
+        v2_project_id        text                  not null
+            constraint v2_project_pk primary key,
+        v2_project_key       text                  not null,
+        is_leaf              boolean default false not null, -- не может иметь ресурсы-наследники
+        created_at           timestamp             not null,
+        created_by           text                  not null,
+        v2_parent_project_id text
+            constraint v2_project_self_fk
+                references ssd.v2_project on update cascade on delete cascade
+    );
+
+    alter table ssd.v2_project
+        owner to ssd;
+
+
+    ------------------------------------------------
+    -- Адаптеры инструментов (софт)
+    --
+    create table if not exists ssd.v2_tools_adapter
+    (
+        v2_tools_adapter_key text not null
+            constraint v2_tools_adapter_pk
+                primary key,
+        home_url             text,
+        description          text,
+        default_tool         text
+    );
+
+    alter table ssd.v2_tools_adapter
+        owner to ssd;
+
+    create unique index if not exists v2_tools_adapter_adapter_key_uindex
+        on ssd.v2_tools_adapter (v2_tools_adapter_key);
+
+    ------------------------------------------------
+    -- Инструменты
+    --
+    create table if not exists ssd.v2_tool
+    (
+        v2_tool_key          text not null
+            constraint v2_tool_pk primary key,
+        v2_tool_name         text,
+        is_active            boolean,
+        v2_tool_description  text,
+        v2_tools_adapter_key text not null
+            constraint v2_tool_ada_fk
+                references ssd.v2_tools_adapter
+                on update cascade on delete cascade
+    );
+
+    alter table ssd.v2_tool
+        owner to ssd;
+
+    ------------------------------------------------
+    -- Связь инструмента с тарифным планом
+    --
+    create table if not exists ssd.v2_bundle2tool
+    (
+        v2_bundle2tool_id bigserial
+            constraint v2_bundle2tool_pk primary key,
+        v2_bundle_key     text not null
+            constraint v2_bundle2tool_b_fk
+                references ssd.v2_bundle on update cascade on delete cascade,
+        v2_tool_key       text
+            constraint v2_bundle2tool_t_fk
+                references ssd.v2_tool on update cascade on delete cascade
+    );
+
+    alter table ssd.v2_bundle2tool
+        owner to ssd;
+    create unique index if not exists v2_bundle2tool_uniq_index
+        on ssd.v2_bundle2tool (v2_bundle_key, v2_tool_key);
+    create sequence if not exists ssd.v2_bundle2tool_v2_bundle2tool_id_seq;
+    alter sequence ssd.v2_bundle2tool_v2_bundle2tool_id_seq owner to ssd;
+    alter sequence ssd.v2_bundle2tool_v2_bundle2tool_id_seq owned by ssd.v2_bundle2tool.v2_bundle2tool_id;
+
+
+    ------------------------------------------------
+    -- Связь проекта с инструментом
+    --
+    create table if not exists ssd.v2_project2tool
+    (
+        v2_project2tool_id bigserial
+            constraint v2_project2tool_pk primary key,
+        v2_project_id      text not null
+            constraint v2_project2tool_f_fk
+                references ssd.v2_project on update cascade on delete cascade,
+        v2_tool_key        text
+            constraint v2_project2tool_t_fk
+                references ssd.v2_tool on update cascade on delete cascade
+    );
+
+    alter table ssd.v2_project2tool
+        owner to ssd;
+
+    create unique index if not exists v2_project2tool_uindex
+        on ssd.v2_project2tool (v2_project_id, v2_tool_key);
+    create sequence if not exists ssd.v2_project2tool_v2_project2tool_id_seq;
+    alter sequence ssd.v2_project2tool_v2_project2tool_id_seq owner to ssd;
+    alter sequence ssd.v2_project2tool_v2_project2tool_id_seq owned by ssd.v2_project2tool.v2_project2tool_id;
+
+    ------------------------------------------------
+    -- Пользовательские свойства проекта
+    --
+    create table if not exists ssd.v2_project_custom_property
+    (
+        v2_project_custom_property_id bigserial
+            constraint v2_project_custom_property_pk primary key,
+        p_key                         text   not null,
+        p_value                       text   not null,
+        data_type_id                  bigint not null
+            constraint v2_project_custom_property_dt_fk
+                references ssd.data_type on update cascade on delete cascade,
+        v2_project_id                 text   not null
+            constraint v2_project_custom_property_f_fk
+                references ssd.v2_project on update cascade on delete cascade
+    );
+
+    alter table ssd.v2_project_custom_property
+        owner to ssd;
+
+    create unique index if not exists v2_project_custom_property_fkv_uindex
+        on v2_project_custom_property (v2_project_id, p_key, p_value);
+    create sequence if not exists ssd.v2_project_custom_property_v2_project_custom_property_id_seq;
+    alter sequence ssd.v2_project_custom_property_v2_project_custom_property_id_seq owner to ssd;
+    alter sequence ssd.v2_project_custom_property_v2_project_custom_property_id_seq owned by ssd.v2_project_custom_property.v2_project_custom_property_id;
+
+    ------------------------------------------------
+    -- Системные свойства проекта
+    --
+    create table if not exists ssd.v2_project_property
+    (
+        v2_project_property_id bigserial
+            constraint v2_project_property_pk primary key,
+        p_key                  text   not null
+            constraint v2_project_property_2key_fk
+                references ssd.v2_property_key on update cascade on delete cascade,
+        p_value                text   not null,
+        data_type_id           bigint not null
+            constraint v2_project_property_dt_fk
+                references ssd.data_type on update cascade on delete cascade,
+        v2_project_id          text   not null
+            constraint v2_project_property_f_fk
+                references ssd.v2_project on update cascade on delete cascade
+    );
+
+    alter table ssd.v2_project_property
+        owner to ssd;
+
+    create unique index if not exists v2_project_property_fkv_uindex
+        on ssd.v2_project_property (v2_project_id, p_key);
+    create sequence if not exists ssd.v2_project_property_v2_project_property_id_seq;
+    alter sequence ssd.v2_project_property_v2_project_property_id_seq owner to ssd;
+    alter sequence ssd.v2_project_property_v2_project_property_id_seq owned by ssd.v2_project_property.v2_project_property_id;
+
+    ----------------------------------------------------------------
+    -- Свойства инструментов относительно проекта (урлы и тп)
+    --
+    create table if not exists ssd.v2_project_tool_property
+    (
+        v2_project_tool_property_id bigserial
+            constraint v2_project_tool_properties_pk primary key,
+        v2_project2tool_id          bigint not null
+            constraint v2_project_tool_properties_f2t_fk
+                references ssd.v2_project2tool on update cascade on delete cascade,
+        p_key                       text   not null,
+        p_value                     text   not null,
+        data_type_id                bigint not null
+            constraint v2_project_tool_properties_dt_fk
+                references ssd.data_type on update cascade on delete cascade
+    );
+
+    alter table ssd.v2_project_tool_property
+        owner to ssd;
+
+    create unique index if not exists v2_project_tool_properties_uindex
+        on ssd.v2_project_tool_property (v2_project2tool_id, p_key, p_value);
+    create sequence if not exists ssd.v2_project_tool_property_v2_project_tool_property_id_seq;
+    alter sequence ssd.v2_project_tool_property_v2_project_tool_property_id_seq owner to ssd;
+    alter sequence ssd.v2_project_tool_property_v2_project_tool_property_id_seq owned by ssd.v2_project_tool_property.v2_project_tool_property_id;
+
+    ---------------------------------------------------------------------
+    -- Роль в команде
+    --
+
+    create table if not exists ssd.team_role
+    (
+        team_role_id     bigserial
+            constraint team_role_pk primary key,
+        created_at       timestamp not null,
+        updated_at       timestamp not null,
+        team_role_name   text,
+        description      text,
+        organization_id text      not null
+            constraint team_role_org__fk references ssd.v2_project on update cascade on delete cascade
+    );
+
+    alter table ssd.team_role
+        owner to ssd;
+    create sequence if not exists ssd."team_role_team_role_id_seq";
+    alter sequence ssd."team_role_team_role_id_seq" owner to ssd;
+    alter sequence ssd."team_role_team_role_id_seq" owned by ssd.team_role."team_role_id";
+
+    ---------------------------------------------------------------------
+    -- Тип правила
+    --
+    create table if not exists ssd.rule_type
+    (
+        rule_type_id text default 'r'::text not null
+            constraint user_role_type_pk primary key,
+        description  text
+    );
+
+    alter table ssd.rule_type
+        owner to ssd;
+    create unique index if not exists user_role_type_user_role_type_id_uindex
+        on ssd.rule_type (rule_type_id);
+
+
+    ----------------------------------------------------------------
+    -- Правило
+    --
+    create table if not exists ssd.v2_rule
+    (
+        rule_id      bigserial
+            constraint v2_rule_pk
+                primary key,
+        created_at   timestamp not null,
+        updated_at   timestamp not null,
+        team_role_id bigint    not null
+            constraint rule_team_role__fk
+                references ssd.team_role
+                on update cascade on delete cascade,
+        tool_key     text      not null
+            constraint rule_v2_tool_fk
+                references ssd.v2_tool
+                on update cascade on delete cascade,
+        rule_type_id text      not null
+            constraint rule_rule_type_fk
+                references ssd.rule_type
+                on update cascade on delete cascade
+    );
+
+    alter table ssd.v2_rule
+        owner to ssd;
+
+    create unique index if not exists v2_rule_uniq_index
+        on ssd.v2_rule (team_role_id, tool_key);
+
+    create unique index if not exists v2_rule_roletoolrule_uindex
+        on ssd.v2_rule (team_role_id, tool_key, rule_type_id);
+
+    ----------------------------------------------------------------
+    -- Пользовательская роль
+    --
+    create table if not exists ssd.v2_user_role
+    (
+        user_role_id bigserial
+            constraint v2_user_role_pk
+                primary key,
+        created_at   timestamp not null,
+        updated_at   timestamp not null,
+        email        text      not null,
+        role_value   text      not null,
+        project_id   text      not null
+            constraint v2_user_role_project_fk
+                references ssd.v2_project
+                on update cascade on delete cascade,
+        rule_type_id text      not null
+            constraint v2_user_rule_type_fk
+                references ssd.rule_type
+                on update cascade on delete cascade,
+        tool_key     text      not null
+            constraint v2_user_role_tool_type_fk
+                references ssd.v2_tool
+                on update cascade on delete cascade,
+        team_role_id bigint    not null
+            constraint v2_user_role_team_role_fk
+                references ssd.team_role
+                on update cascade on delete cascade
+    );
+
+    alter table ssd.v2_user_role
+        owner to ssd;
+
+    create unique index if not exists v2_user_role_emailproj_uindex
+        on ssd.v2_user_role (email, project_id, role_value);
+
+    --
+    -- Функция проверки символов ключа (лат и символы)
+    --
+    create or replace function ssd.regexp_key_check(p_value text) returns boolean as
+    '
+        begin
+            if regexp_matches(p_value, ''^[a-zA-Z0-9\-.]*$'') IS NOT NULL then
+                return true;
+            end if;
+            return false;
+        end;
+    '
+        language plpgsql;
+    alter function ssd.regexp_key_check(text) owner to ssd;
+
+    --
+    -- триг функц before insert/update v2_project на ключ
+    --
+    create or replace function ssd."v2_project_bui_check_func"() returns trigger as
+    '
+        declare
+            v_tmp_id text;
+        begin
+            IF NOT ssd."regexp_key_check"(NEW.v2_project_key) THEN
+                RAISE EXCEPTION ''project key % has forbidden character'', NEW.v2_project_key;
+            END IF;
+
+            v_tmp_id := replace(NEW.v2_project_id, ''/'', ''-'');
+            IF NOT ssd."regexp_key_check"(v_tmp_id) THEN
+                RAISE EXCEPTION ''project id % has forbidden character'', NEW.v2_project_id;
+            END IF;
+
+            return new;
+        end;
+    '
+        language plpgsql;
+
+    alter function ssd."v2_project_bui_check_func"() owner to ssd;
+
+    --
+    -- триггер before insert/update ssd.v2_project
+    --
+    DROP TRIGGER IF EXISTS v2_project_bui_check on ssd.v2_project;
+    CREATE TRIGGER v2_project_bui_check
+        BEFORE INSERT OR UPDATE
+        ON ssd.v2_project
+        FOR EACH ROW
+    EXECUTE FUNCTION ssd."v2_project_bui_check_func"();
+
+    --
+    -- триг функц before insert/update ssd.v2_project_property на имя
+    --
+    create or replace function ssd."v2_project_property_bui_check_func"() returns trigger as
+    '   declare
+        regexp_pattern text;
+    begin
+        SELECT pk.regex_pattern
+        FROM ssd.v2_property_key pk
+        WHERE pk.v2_p_key = NEW.p_key
+        INTO regexp_pattern;
+        IF regexp_pattern IS NOT NULL THEN
+            IF regexp_matches(NEW.p_value, regexp_pattern) IS NULL THEN
+                RAISE EXCEPTION ''project property % with value % has forbidden character'', NEW.p_key, NEW.p_value;
+            END IF;
+        END IF;
+        RETURN NEW;
+    end;
+    '
+        language plpgsql;
+
+    alter function ssd."v2_project_property_bui_check_func"() owner to ssd;
+
+    --
+    -- триггер before insert/update v2_project_property
+    --
+    DROP TRIGGER IF EXISTS v2_project_property_bui_check on ssd.v2_project_property;
+    CREATE TRIGGER v2_project_property_bui_check
+        BEFORE INSERT OR UPDATE
+        ON ssd.v2_project_property
+        FOR EACH ROW
+    EXECUTE FUNCTION ssd."v2_project_property_bui_check_func"();
+
+    --
+    -- триг функц before insert/update v2_bundle на ключ
+    --
+    create or replace function ssd."v2_bundle_bui_check_func"() returns trigger as
+    '
+        begin
+            IF NOT ssd."regexp_key_check"(NEW.v2_bundle_key) THEN
+                RAISE EXCEPTION ''bundle key % has forbidden character'', NEW.v2_bundle_key;
+            END IF;
+
+            return new;
+        end;
+    '
+        language plpgsql;
+
+    alter function ssd."v2_bundle_bui_check_func"() owner to ssd;
+
+    --
+    -- триггер before insert/update v2_bundle
+    --
+    DROP TRIGGER IF EXISTS v2_bundle_bui_check on ssd.v2_bundle;
+    CREATE TRIGGER v2_bundle_bui_check
+        BEFORE INSERT OR UPDATE
+        ON ssd.v2_bundle
+        FOR EACH ROW
+    EXECUTE FUNCTION ssd."v2_bundle_bui_check_func"();
+
+
+
+    -----------------------------------------------------------------
+    -- Транзакция
+    --
+    create table if not exists ssd.transaction
+    (
+        transaction_id text      not null
+            constraint transaction_pk primary key,
+        project_id     text      not null,
+        dumped         timestamp not null,
+        content        text      not null
+    );
+
+    alter table ssd.transaction
+        owner to ssd;
+    create unique index if not exists transaction_transaction_id_uindex on ssd.transaction ("transaction_id");
+
+
+    -----------------------------------------------------------------
+    -- История транзакций
+    --
+    create table if not exists ssd.completed_transaction
+    (
+        transaction_id text                   not null
+            constraint completed_transaction_pk
+                primary key,
+        project_id     text                   not null,
+        started        timestamp              not null,
+        completed      timestamp              not null,
+        originator     text                   not null,
+        trans_type     text                   not null,
+        success        boolean  default false not null,
+        json_content   text                   not null,
+        tasks          smallint default 0     not null
+    );
+
+    alter table ssd.completed_transaction
+        owner to ssd;
+    create unique index if not exists completed_transaction_transaction_id_uindex
+        on ssd.completed_transaction (transaction_id);
+
+
+    -----------------------------------------------------------------
+    -- Скрипты
+    --
+    create table if not exists ssd.script
+    (
+        "script_id"   bigserial
+            constraint script_id_pk primary key,
+        "adapter"     text                 not null
+            constraint script_ada_fk
+                references ssd.v2_tools_adapter
+                on update cascade on delete cascade,
+        "projects"    text,
+        "script_body" text                 not null,
+        description   text,
+        active        boolean default true not null
+    );
+    create sequence if not exists ssd.script_id_seq;
+    alter sequence ssd.script_id_seq owner to ssd;
+    alter sequence ssd.script_id_seq owned by ssd.script.script_id;
+    create unique index if not exists script_adapter_projects_uindex
+        on ssd.script (adapter, projects);
+
+
+  lb-ssd-db-03.sql: |
+    -- ===============================================================
+    --
+    -- Костылик-функция инициализации данных
+    --
+    create or replace function ssd.init_schema() returns boolean as
+    '
+        declare
+            cnt int;
+        begin
+            select count(*)
+            from ssd.data_type
+            into cnt;
+            if cnt = 0 then
+                INSERT INTO ssd.data_type ("data_type_name", "java_class", description)
+                VALUES (''Number'', ''java.lang.Long'', ''Число (целое)'');
+                INSERT INTO ssd.data_type ("data_type_name", "java_class", description)
+                VALUES (''Boolean'', ''java.lang.Boolean'', ''true/false'');
+                INSERT INTO ssd.data_type ("data_type_name", "java_class", description)
+                VALUES (''String'', ''java.lang.String'', ''Строка'');
+                INSERT INTO ssd.data_type ("data_type_name", "java_class", description)
+                VALUES (''DateTime'', ''java.time.Instant'', ''Дата и время'');
+                INSERT
+                INTO ssd.data_type ("data_type_name", "java_class", description)
+                VALUES (''Double'', ''java.lang.Double'', ''Число (пл т)'');
+                INSERT INTO ssd.data_type ("data_type_name", "java_class", description)
+                VALUES (''Json'', ''java.lang.String'', ''срока джсон'');
+                INSERT INTO ssd.data_type ("data_type_name", "java_class", description)
+                VALUES (''Timestamp'', ''java.lang.Long'', ''к-во ссекунд с 01.01.1970 (UTC)'');
+
+                INSERT INTO ssd.app_property (p_key, p_value, data_type_id)
+                VALUES (''app.host.url'',
+                        ''http://localhost:3000'',
+                        (select dt."data_type_id"
+                         from ssd.data_type dt
+                         where dt."data_type_name" = ''String''));
+                INSERT INTO ssd.app_property (p_key, p_value, data_type_id)
+                VALUES (''org.bundle.default'',
+                        ''advance'',
+                        (select dt."data_type_id"
+                         from ssd.data_type dt
+                         where dt."data_type_name" = ''String''));
+                INSERT INTO ssd.app_property (p_key, p_value, data_type_id)
+                VALUES (''app.core-data.version'',
+                        ''2'',
+                        (select dt."data_type_id"
+                         from ssd.data_type dt
+                         where dt."data_type_name" = ''String''));
+                INSERT INTO ssd.app_property (p_key, p_value, data_type_id)
+                VALUES (''app.core-data-v2.url'',
+                        ''http://localhost:8080/ssd-core-data/v2'',
+                        (select dt."data_type_id"
+                         from ssd.data_type dt
+                         where dt."data_type_name" = ''String''));
+                INSERT INTO ssd.app_property (p_key, p_value, data_type_id)
+                VALUES (''ssp.url'',
+                        ''https://localhost/ssp-portal/#/start/add-advanced'',
+                        (select dt."data_type_id"
+                         from ssd.data_type dt
+                         where dt."data_type_name" = ''String''));
+
+                INSERT INTO ssd.v2_tools_adapter (v2_tools_adapter_key, home_url, description, default_tool)
+                VALUES (''gitlab'', ''http://localhost'', ''gitlab'', ''track'');
+                INSERT INTO ssd.v2_tools_adapter (v2_tools_adapter_key, home_url, description, default_tool)
+                VALUES (''jci'', ''http://localhost'', ''jenkins-ci'', null);
+                INSERT INTO ssd.v2_tools_adapter (v2_tools_adapter_key, home_url, description, default_tool)
+                VALUES (''jcd'', ''http://localhost'', ''jenkins-cd'', null);
+                INSERT INTO ssd.v2_tools_adapter (v2_tools_adapter_key, home_url, description, default_tool)
+                VALUES (''mock'', ''http://localhost'', ''sbermock'', null);
+                INSERT INTO ssd.v2_tools_adapter (v2_tools_adapter_key, home_url, description, default_tool)
+                VALUES (''snr'', ''http://localhost'', ''sonar'', null);
+                INSERT INTO ssd.v2_tools_adapter (v2_tools_adapter_key, home_url, description, default_tool)
+                VALUES (''nci'', ''http://localhost'', ''nexus-ci'', null);
+                INSERT INTO ssd.v2_tools_adapter (v2_tools_adapter_key, home_url, description, default_tool)
+                VALUES (''ncd'', ''http://localhost'', ''nexus-cd'', null);
+                INSERT INTO ssd.v2_tools_adapter (v2_tools_adapter_key, home_url, description, default_tool)
+                VALUES (''dpt'', ''http://localhost'', ''dpt'', null);
+                INSERT INTO ssd.v2_tools_adapter (v2_tools_adapter_key, home_url, description, default_tool)
+                VALUES (''dpm'', ''http://localhost'', ''dpm'', null);
+                INSERT INTO ssd.v2_tools_adapter (v2_tools_adapter_key, home_url, description, default_tool)
+                VALUES (''pact'', ''http://localhost'', ''pact'', null);
+                INSERT INTO ssd.v2_tools_adapter (v2_tools_adapter_key, home_url, description, default_tool)
+                VALUES (''view'', ''http://localhost'', ''view'', null);
+
+                INSERT
+                    INTO ssd.v2_tools_adapter (v2_tools_adapter_key, home_url, description, default_tool)
+                VALUES (''stub'', ''http://localhost:28802/stub/'', ''stub'', null);
+
+                INSERT INTO ssd.v2_tool (v2_tool_key, v2_tool_name, is_active, v2_tool_description, v2_tools_adapter_key)
+                VALUES (''track'', ''TrackWork'', true, ''Управление проектом'', ''gitlab'');
+                INSERT INTO ssd.v2_tool (v2_tool_key, v2_tool_name, is_active, v2_tool_description, v2_tools_adapter_key)
+                VALUES (''jci'', ''CIWork'', true, ''Управление сборкой ПО'', ''jci'');
+                INSERT INTO ssd.v2_tool (v2_tool_key, v2_tool_name, is_active, v2_tool_description, v2_tools_adapter_key)
+                VALUES (''jcd'', ''CDWork'', true, ''Управление развертыванием ПО'', ''jcd'');
+                INSERT INTO ssd.v2_tool (v2_tool_key, v2_tool_name, is_active, v2_tool_description, v2_tools_adapter_key)
+                VALUES (''mock'', ''MockWork'', true, ''Контрактное тестирование'', ''mock'');
+                INSERT INTO ssd.v2_tool (v2_tool_key, v2_tool_name, is_active, v2_tool_description, v2_tools_adapter_key)
+                VALUES (''snr'', ''SonarWork'', true, ''Анализ качества кода'', ''snr'');
+                INSERT INTO ssd.v2_tool (v2_tool_key, v2_tool_name, is_active, v2_tool_description, v2_tools_adapter_key)
+                VALUES (''nci'', ''CodeWorkCI'', true, ''Управление репозиториями дистрибутивов этап CI'', ''nci'');
+                INSERT INTO ssd.v2_tool (v2_tool_key, v2_tool_name, is_active, v2_tool_description, v2_tools_adapter_key)
+                VALUES (''ncd'', ''CodeWorkCD'', true, ''Управление репозиториями дистрибутивов этап CD'', ''ncd'');
+                INSERT INTO ssd.v2_tool (v2_tool_key, v2_tool_name, is_active, v2_tool_description, v2_tools_adapter_key)
+                VALUES (''dpm'', ''DPMWORK'', true, ''Управление поставками дистрибутивов'', ''dpm'');
+                INSERT INTO ssd.v2_tool (v2_tool_key, v2_tool_name, is_active, v2_tool_description, v2_tools_adapter_key)
+                VALUES (''dpt'', ''FossWork'', true, ''Анализ зависимостей'', ''dpt'');
+                INSERT INTO ssd.v2_tool (v2_tool_key, v2_tool_name, is_active, v2_tool_description, v2_tools_adapter_key)
+                VALUES (''pact'', ''PactWork'', true, ''Контрактное тестирование интеграций'', ''pact'');
+                INSERT INTO ssd.v2_tool (v2_tool_key, v2_tool_name, is_active, v2_tool_description, v2_tools_adapter_key)
+                VALUES (''view'', ''ViewWork'', true, ''Мониторинг производственного процесса'', ''view'');
+
+                INSERT INTO ssd.v2_tool (v2_tool_key, v2_tool_name, is_active, v2_tool_description, v2_tools_adapter_key)
+                VALUES (''synt'', ''SyntWork'', false, ''Генерация тестовых данных'', ''stub'');
+                INSERT INTO ssd.v2_tool (v2_tool_key, v2_tool_name, is_active, v2_tool_description, v2_tools_adapter_key)
+                VALUES (''autot'', ''AutotestWork'', false, ''Управление автотестированием'', ''stub'');
+                INSERT INTO ssd.v2_tool (v2_tool_key, v2_tool_name, is_active, v2_tool_description, v2_tools_adapter_key)
+                VALUES (''meta'', ''MetaWork'', false, ''Реестр проектирование API'', ''stub'');
+                INSERT INTO ssd.v2_tool (v2_tool_key, v2_tool_name, is_active, v2_tool_description, v2_tools_adapter_key)
+                VALUES (''gate'', ''GateWork'', false, ''Контроль качества'', ''stub'');
+
+
+                INSERT INTO ssd.v2_property_key (v2_p_key, description, regex_pattern, data_type_id)
+                VALUES (''name'', ''имя проекта/папки/орг/репы'', ''^(?![0-9]*$)[a-zA-Zа-яА-Я0-9\s\-_]+$'',
+                        (select dt."data_type_id"
+                         from ssd.data_type dt
+                         where dt."data_type_name" = ''String''));
+
+                INSERT INTO ssd.v2_property_key (v2_p_key, description, regex_pattern, data_type_id)
+                VALUES (''bundle'', ''ключ (НЕ ИМЯ) текущего бандла'', null, (select dt."data_type_id"
+                                                                              from ssd.data_type dt
+                                                                              where dt."data_type_name" = ''String''));
+                INSERT INTO ssd.v2_property_key (v2_p_key, description, regex_pattern, data_type_id)
+                VALUES (''uri'', ''URI в пределах SSDP'', null, (select dt."data_type_id"
+                                                                 from ssd.data_type dt
+                                                                 where dt."data_type_name" = ''String''));
+                INSERT
+                    INTO ssd.v2_property_key (v2_p_key, description, regex_pattern, data_type_id)
+                VALUES (''updated_by'', ''автор последних изменений'', null, (select dt."data_type_id"
+                                                                              from ssd.data_type dt
+                                                                              where dt."data_type_name" = ''String''));
+                INSERT
+                    INTO ssd.v2_property_key (v2_p_key, description, regex_pattern, data_type_id)
+                VALUES (''updated_at'', ''дата+время последнего изменения'', null, (select dt."data_type_id"
+                                                                                    from ssd.data_type dt
+                                                                                    where dt."data_type_name" = ''DateTime''));
+                INSERT
+                    INTO ssd.v2_property_key (v2_p_key, description, regex_pattern, data_type_id)
+                VALUES (''created_by'', ''автор'', null, (select dt."data_type_id"
+                                                          from ssd.data_type dt
+                                                          where dt."data_type_name" = ''String''));
+                INSERT
+                    INTO ssd.v2_property_key (v2_p_key, description, regex_pattern, data_type_id)
+                VALUES (''created_at'', ''дата+время создания'', null, (select dt."data_type_id"
+                                                                        from ssd.data_type dt
+                                                                        where dt."data_type_name" = ''DateTime''));
+                INSERT
+                    INTO ssd.v2_property_key (v2_p_key, description, regex_pattern, data_type_id)
+                VALUES (''description'', ''описание'', null, (select dt."data_type_id"
+                                                                              from ssd.data_type dt
+                                                                              where dt."data_type_name" = ''String''));
+
+                INSERT
+                    INTO ssd.v2_property_key (v2_p_key, description, regex_pattern, data_type_id)
+                VALUES (''owner_login'', ''коордиинатор(ы)'', null, (select dt."data_type_id"
+                                                              from ssd.data_type dt
+                                                              where dt."data_type_name" = ''String''));
+
+                INSERT
+                    INTO ssd.v2_property_key (v2_p_key, description, regex_pattern, data_type_id)
+                VALUES (''group_id'', ''id группы нексуса'', null, (select dt."data_type_id"
+                                                                     from ssd.data_type dt
+                                                                     where dt."data_type_name" = ''String''));
+
+                INSERT INTO ssd.v2_bundle (v2_bundle_key, v2_bundle_name, description)
+                VALUES (''base'', ''Базовый набор'',
+    ''TrackWork,Управление проектом,1;
+    RepoWork,Управление репозиториями дистрибутивов,0;
+    CIWork,Управление сборкой ПО,0;
+    PipeWork,Управление поставками дистрибутивов,0;
+    ScanWork,Анализ качества кода,0;
+    MockWork,Контрактное тестирование,0;
+    PactWork,Контрактное тестирование интеграций,0;
+    SyntWork,Генерация тестовых данных,0;
+    ViewWork,Мониторинг производственного процесса,0;
+    FoseWork,Анализ зависимостей,0'');
+
+                INSERT INTO ssd.v2_bundle (v2_bundle_key, v2_bundle_name, description)
+                VALUES (''advance'', ''Инженерный набор'',
+    ''TrackWork,Управление проектом,1;
+    RepoWork,Управление репозиториями дистрибутивов,1;
+    CIWork,Управление сборкой ПО,1;
+    PipeWork,Управление поставками дистрибутивов,1;
+    ScanWork,Анализ качества кода,1;
+    MockWork,Контрактное тестирование,1;
+    PactWork,Контрактное тестирование интеграций,1;
+    SyntWork,Генерация тестовых данных,1;
+    ViewWork,Мониторинг производственного процесса,1;
+    FoseWork,Анализ зависимостей,1'');
+
+                INSERT INTO ssd.v2_bundle2tool (v2_bundle_key, v2_tool_key)
+                VALUES (''base'', ''track'');
+                INSERT INTO ssd.v2_bundle2tool (v2_bundle_key, v2_tool_key)
+                VALUES (''advance'', ''track'');
+                INSERT INTO ssd.v2_bundle2tool (v2_bundle_key, v2_tool_key)
+                VALUES (''advance'', ''jci'');
+                INSERT INTO ssd.v2_bundle2tool (v2_bundle_key, v2_tool_key)
+                VALUES (''advance'', ''jcd'');
+                INSERT INTO ssd.v2_bundle2tool (v2_bundle_key, v2_tool_key)
+                VALUES (''advance'', ''mock'');
+                INSERT INTO ssd.v2_bundle2tool (v2_bundle_key, v2_tool_key)
+                VALUES (''advance'', ''snr'');
+                INSERT INTO ssd.v2_bundle2tool (v2_bundle_key, v2_tool_key)
+                VALUES (''advance'', ''nci'');
+                INSERT INTO ssd.v2_bundle2tool (v2_bundle_key, v2_tool_key)
+                VALUES (''advance'', ''dpt'');
+                INSERT INTO ssd.v2_bundle2tool (v2_bundle_key, v2_tool_key)
+                VALUES (''advance'', ''dpm'');
+                INSERT INTO ssd.v2_bundle2tool (v2_bundle_key, v2_tool_key)
+                VALUES (''advance'', ''view'');
+                INSERT INTO ssd.v2_bundle2tool (v2_bundle_key, v2_tool_key)
+                VALUES (''advance'', ''pact'');
+
+                INSERT INTO ssd.rule_type (rule_type_id, description) VALUES (''a'', ''admin'');
+                INSERT INTO ssd.rule_type (rule_type_id, description) VALUES (''w'', ''write'');
+                INSERT INTO ssd.rule_type (rule_type_id, description) VALUES (''x'', ''ex'');
+                INSERT INTO ssd.rule_type (rule_type_id, description) VALUES (''r'', ''read'');
+
+                INSERT INTO ssd.script (adapter, projects, script_body, description, active)
+                VALUES (''ncd'', null, ''{
+      "target": [
+        {
+          "side": 2,
+          "project": {
+            "key": "$parentId$",
+            "repos": [
+              "prod",
+              "docker",
+              "helm"
+            ]
+          }
+        }
+      ]
+    }'', null, true);
+                INSERT INTO ssd.script (adapter, projects, script_body, description, active)
+                VALUES (''nci'', null, ''{
+      "target": [
+        {
+          "side": 2,
+          "project": {
+            "key": "$parentId$",
+            "repos": [
+              "maven",
+              "npm",
+              "helm",
+              "ruby",
+              "pypi"
+            ]
+          }
+        }
+      ]
+    }'', null, true);
+                INSERT INTO ssd.script (adapter, projects, script_body, description, active)
+                VALUES (''gitlab'', null, ''{
+      "target": [
+        {
+          "side": 0,
+          "execute-for-level": 2,
+          "project-areas": [
+            {
+              "key": "RepoProject",
+              "name": "Репозитории",
+              "description": null,
+              "bundleKey": "$bundleKey$",
+              "parent": {"id":"$parentId$","bundleKey": "$bundleKey$", "leaf": false},
+              "leaf": false
+            },
+            {
+              "key": "WikiProject",
+              "name": "Документация проекта",
+              "description": null,
+              "bundleKey": "$bundleKey$",
+              "parent": {"id":"$parentId$","bundleKey": "$bundleKey$", "leaf": false},
+              "leaf": true
+            },
+            {
+              "key": "TaskProject",
+              "name": "Задачи проекта",
+              "description": null,
+              "bundleKey": "$bundleKey$",
+              "parent": {"id":"$parentId$","bundleKey": "$bundleKey$", "leaf": false},
+              "leaf": true
+            }
+          ]
+        }
+      ]
+    }'', null, true);
+
+                return true;
+            end if;
+            return false;
+        end;
+    '
+        language plpgsql;
+    select
+    from ssd.init_schema();
+
+  lb-ssd-db-04.sql: |
+    UPDATE ssd.v2_tool SET v2_tool_key='snt' WHERE v2_tool_key='synt';
+    UPDATE ssd.v2_tool SET v2_tool_name='RepoWorkCI' WHERE v2_tool_key='nci';
+    UPDATE ssd.v2_tool SET v2_tool_name='RepoWorkCD' WHERE v2_tool_key='ncd';
+    UPDATE ssd.v2_tool SET v2_tool_name='PipeWork' WHERE v2_tool_key='dpm';
+
+  lb-ssd-db-05.sql: |
+    UPDATE ssd.script SET script_body='{
+      "target": [
+        {
+          "side": 2,
+          "project": {
+            "key": "$parentId$",
+            "repos": [
+              "maven",
+              "npm",
+              "helm",
+              "raw",
+              "pypi"
+            ]
+          }
+        }
+      ]
+    }' WHERE adapter='nci';
+  lb-ssd-db-06.sql: |
+    alter table ssd.transaction add column  if not exists email text;
+    alter table ssd.completed_transaction add column if not exists email text;
+  lb-ssd-db-07.sql: |
+    create or replace function ssd.regexp_key_check(p_value text) returns boolean as
+    '
+        begin
+            if regexp_matches(p_value, ''^[a-zA-Z0-9\-]*$'') IS NOT NULL then
+                return true;
+            end if;
+            return false;
+        end;
+    '
+        language plpgsql;
+  lb-ssd-db-08.sql: |
+    DELETE FROM ssd.v2_property_key WHERE v2_p_key = 'domainName';
+    INSERT INTO ssd.v2_property_key (v2_p_key, description, regex_pattern, data_type_id)
+    VALUES ('domainName',
+            'Домен это эндпоинт по которому пользователь может обращаться к заглушкам.',
+            '/^(?!.*(?:-)$)[a-z][a-z0-9-]*$/',
+            (select dt."data_type_id"
+             from ssd.data_type dt
+             where dt."data_type_name" = 'String'));
+
+
+  lb-ssd-db-09.sql: |
+    -- auto-generated definition
+    create table if not exists ssd.event_log
+    (
+        event_id     text not null
+            constraint event_log_pk
+                primary key,
+        event_type   text not null,
+        event_action text not null,
+        issuer       text not null,
+        dt_event     timestamp not null,
+        original_message      text
+    );
+
+    alter table ssd.event_log
+        owner to ssd;
+
+    create unique index if not exists event_log_event_id_uindex
+        on ssd.event_log (event_id);
+
+    create table if not exists ssd.event_log_property
+    (
+        event_log_property_id   bigserial
+            constraint event_log_property_pk
+                primary key,
+        event_id                text not null
+            constraint event_log_property_event_log_fk
+                references ssd.event_log
+                on update cascade on delete cascade,
+        event_property_name     text not null,
+        event_property_value    text not null,
+        event_property_datatype text not null
+    );
+
+    alter table ssd.event_log_property
+        owner to ssd;
+
+    create unique index if not exists event_log_property_event_log_property_id_uindex
+        on ssd.event_log_property (event_log_property_id);
+
+    create sequence if not exists ssd.event_seq cycle;
+    comment on sequence event_seq is 'порядковый номер события';
+    alter sequence ssd.event_seq owner to ssd;
+
+    create table if not exists ssd.event_prefs
+    (
+        tool_key              text                  not null
+            constraint event_prefs_pk
+                primary key
+            constraint event_prefs_tool_fk
+                references ssd.v2_tool
+                on update cascade on delete cascade,
+        events_enabled        boolean default false not null,
+        system_events_allowed boolean default false not null
+    );
+
+    alter table ssd.event_prefs
+        owner to ssd;
+
+    create unique index if not exists event_prefs_tool_key_uindex
+        on ssd.event_prefs (tool_key);
+
+
+  lb-ssd-db-10.sql: |
+    UPDATE ssd.v2_tool SET v2_tool_name='TaskTracker' WHERE v2_tool_key='track';
+    UPDATE ssd.v2_tool SET v2_tool_name='Artifactory CI' WHERE v2_tool_key='nci';
+    UPDATE ssd.v2_tool SET v2_tool_name='Artifactory CD' WHERE v2_tool_key='ncd';
+    UPDATE ssd.v2_tool SET v2_tool_name='Pipeliner CI' WHERE v2_tool_key='jci';
+    UPDATE ssd.v2_tool SET v2_tool_name='Pipeliner CD' WHERE v2_tool_key='jcd';
+    UPDATE ssd.v2_tool SET v2_tool_name='Orchestra R' WHERE v2_tool_key='dpm';
+    UPDATE ssd.v2_tool SET v2_tool_name='CodeScanner' WHERE v2_tool_key='snr';
+    UPDATE ssd.v2_tool SET v2_tool_name='API Mock' WHERE v2_tool_key='mock';
+    UPDATE ssd.v2_tool SET v2_tool_name='PactWork' WHERE v2_tool_key='pact';
+    UPDATE ssd.v2_tool SET v2_tool_name='Test Data Management' WHERE v2_tool_key='snt';
+    UPDATE ssd.v2_tool SET v2_tool_name='Process Monitoring' WHERE v2_tool_key='view';
+    UPDATE ssd.v2_tool SET v2_tool_name='Liblic' WHERE v2_tool_key='dpt';
+
+    UPDATE ssd.v2_bundle SET description='TaskTracker,Управление планированием,1;
+    Artifactory,Управления репозиториями дистрибутивов,0;
+    Pipeliner,Управления сборкой ПО,0;
+    Orchestra R,Управления поставками дистрибутивов,0;
+    CodeScanner,Анализа качества кода,0;
+    API Mock & Contract Testing,Тестирование на заглушках,0;
+    PactWork,Контрактное тестирование интеграций,0;
+    Test Data Management,Генерация тестовых данных,0;
+    Process Monitoring,Мониторинг производственного процесса,0;
+    Liblic,Анализ зависимостей,0'
+    WHERE v2_bundle_key='base';
+
+    UPDATE ssd.v2_bundle SET description='TaskTracker,Управление планированием,1;
+    Artifactory,Управления репозиториями дистрибутивов,1;
+    Pipeliner,Управления сборкой ПО,1;
+    Orchestra R,Управления поставками дистрибутивов,1;
+    CodeScanner,Анализа качества кода,1;
+    API Mock & Contract Testing,Тестирование на заглушках,1;
+    PactWork,Контрактное тестирование интеграций,1;
+    Test Data Management,Генерация тестовых данных,1;
+    Process Monitoring,Мониторинг производственного процесса,1;
+    Liblic,Анализ зависимостей,1'
+    WHERE v2_bundle_key='advance';
+
+  lb-ssd-db-11.sql: |
+    INSERT INTO ssd.v2_tools_adapter (v2_tools_adapter_key, home_url, description, default_tool)
+    VALUES ('loa', 'http://localhost', 'Нагрузочное тестирование', null);
+
+    INSERT INTO ssd.v2_tool (v2_tool_key, v2_tool_name, is_active, v2_tool_description, v2_tools_adapter_key)
+    VALUES ('loa', 'LoadTester', true, 'Нагрузочное тестирование', 'loa');
+
+    INSERT INTO ssd.v2_bundle2tool (v2_bundle_key, v2_tool_key)
+    VALUES ('advance', 'loa');
+
+  lb-ssd-db-12.sql: |
+    INSERT INTO ssd.app_property (p_key, p_value, data_type_id)
+    VALUES ('app.core-data.url',
+            'http://localhost:3000/ssd-core-data',
+            (select dt."data_type_id" from ssd.data_type dt where dt."data_type_name" = 'String'))
+    ON CONFLICT DO NOTHING;
+  lb-ssd-db-13.sql: |
+    UPDATE ssd.script SET script_body='{
+     "target": [
+       {
+         "side": 2,
+         "project": {
+           "key": "$parentId$",
+           "repos": [
+             "prod",
+             "helm"
+           ]
+         }
+       }
+     ]
+    }' WHERE adapter='ncd';
+  lb-ssd-db-14.sql: |
+    CREATE TABLE IF NOT EXISTS ssd."operation"
+    (
+        "operation"   text primary key default 'DEFAULT',
+        "description" text
+    );
+    alter table if exists ssd.operation
+        owner to ssd;
+
+    INSERT INTO ssd.operation
+    VALUES ('CREATE', 'проект/репозиторий создается') ON CONFLICT DO NOTHING;
+    INSERT INTO ssd.operation
+    VALUES ('BIND', 'пользователь привязывается к ресурсу') ON CONFLICT DO NOTHING;
+    INSERT INTO ssd.operation
+    VALUES ('UPDATE', 'проект/репозиторий обновляется') ON CONFLICT DO NOTHING;
+    INSERT INTO ssd.operation
+    VALUES ('UPGRADE', 'проект/репозиторий меняется версия, перемещается в границах инструмента') ON CONFLICT DO NOTHING;
+    INSERT INTO ssd.operation
+    VALUES ('ARCHIVE', 'проект/репозиторий архивируется') ON CONFLICT DO NOTHING;
+    INSERT INTO ssd.operation
+    VALUES ('DELETE', 'проект/репозиторий удаляется') ON CONFLICT DO NOTHING;
+    INSERT INTO ssd.operation
+    VALUES ('UNBIND', 'пользователь отвязывается от ресурса') ON CONFLICT DO NOTHING;
+    INSERT INTO ssd.operation
+    VALUES ('DEFAULT', 'значение по умолчанию, если появилось - искать ошибку в коде') ON CONFLICT DO NOTHING;
+
+    CREATE TABLE IF NOT EXISTS ssd."status"
+    (
+        "status"      text primary key default 'DEFAULT',
+        "description" text
+    );
+
+    alter table if exists ssd.status
+        owner to ssd;
+
+    INSERT INTO ssd.status
+    VALUES ('IN_PROC', 'операция выполняется') ON CONFLICT DO NOTHING;
+    INSERT INTO ssd.status
+    VALUES ('DONE', 'готово, выполнено без ошибок') ON CONFLICT DO NOTHING;
+    INSERT INTO ssd.status
+    VALUES ('ERROR', 'ошибка(и), искать в транзакции') ON CONFLICT DO NOTHING;
+    INSERT INTO ssd.status
+    VALUES ('DEFAULT', 'значение по умолчанию, если появилось - искать ошибку в коде') ON CONFLICT DO NOTHING;
+
+    create index if not exists completed_transaction_project_id_index
+        on ssd.completed_transaction (project_id);
+    create index if not exists completed_transaction_ttype_index
+        on ssd.completed_transaction (trans_type);
+    create index if not exists completed_transaction_success_index
+        on ssd.completed_transaction (success);
+    create index if not exists completed_transaction_started_index
+        on ssd.completed_transaction (started);
+    create index if not exists completed_transaction_completed_index
+        on ssd.completed_transaction (completed);
+
+    CREATE TABLE IF NOT EXISTS ssd.completed_transaction_task
+    (
+        "transaction_task_id"   bigserial
+            constraint transaction_task_pk primary key,
+        "number_in_transaction" smallint  not null,
+        "project_id"            text      not null
+            constraint v2_project_project_id_fk
+                references ssd.v2_project (v2_project_id) on update cascade on delete cascade,
+        "adapter_key"           text      not null
+            constraint v2_tool_key_fk
+                references ssd.v2_tools_adapter (v2_tools_adapter_key) on update cascade on delete cascade,
+        "transaction_id"        text      not null
+            constraint completed_transaction_transaction_id_fk
+                references ssd.completed_transaction (transaction_id) on update cascade on delete cascade,
+        "created"               timestamp not null,
+        "completed"             timestamp not null,
+        "ok"                    boolean   not null default false,
+        "errors"                text
+    );
+
+    create index if not exists completed_transaction_task_project_id_index
+        on ssd.completed_transaction_task (project_id);
+    create index if not exists completed_transaction_task_ok_index
+        on ssd.completed_transaction_task (ok);
+    create index if not exists completed_transaction_task_created_index
+        on ssd.completed_transaction_task (created);
+    create index if not exists completed_transaction_task_completed_index
+        on ssd.completed_transaction_task (completed);
+
+    alter table if exists ssd.completed_transaction_task
+        owner to ssd;
+    create sequence if not exists ssd."completed_transaction_task_ttId_seq";
+    alter sequence if exists ssd."completed_transaction_task_ttId_seq"
+        owner to ssd;
+    alter sequence if exists ssd."completed_transaction_task_ttId_seq"
+        owned by ssd.completed_transaction_task."transaction_task_id";
+
+
+    CREATE TABLE IF NOT EXISTS ssd.operation_status
+    (
+        "project_id"     text not null
+            constraint operation_status_project_id_fk
+                references ssd.v2_project (v2_project_id) on update cascade on delete cascade,
+        "adapter_key"    text not null
+            constraint operation_status_tool_key_fk
+                references ssd.v2_tools_adapter (v2_tools_adapter_key) on update cascade on delete cascade,
+        "operation"      text not null
+            constraint operation_status_operation_fk
+                references ssd.operation (operation) on update cascade on delete cascade,
+        "status"         text not null
+            constraint operation_status_status_fk
+                references ssd.status (status) on update cascade on delete cascade,
+        "transaction_id" text not null,
+        "user"           text,
+        PRIMARY KEY (project_id, adapter_key, operation)
+    );
+
+    ALTER TABLE IF EXISTS ssd.v2_tools_adapter
+        ADD COLUMN IF NOT EXISTS external BOOLEAN;
+    INSERT INTO ssd.v2_tools_adapter
+    VALUES ('keycloak', 'https://someurl', 'внешний адаптер КК', null, true)
+    ON CONFLICT DO NOTHING;
+  lb-ssd-db-15.sql: |
+    -- fuckup with entity column name sber.platform.ssdp.db.v2.entity.OperationStatus
+    ALTER TABLE IF EXISTS ssd.operation_status DROP COLUMN IF EXISTS "user";
+    ALTER TABLE IF EXISTS ssd.operation_status ADD COLUMN IF NOT EXISTS "user_name" TEXT;
+  lb-ssd-db-16.sql: |
+    alter table if exists ssd.completed_transaction
+        add constraint completed_transaction_v2_proj_fk
+            foreign key (project_id) references ssd.v2_project
+                on update cascade on delete cascade;
+  lb-ssd-db-17.sql: |
+    -- Creating new columns for connecting a rule to its team role via string identifiers
+    ALTER TABLE IF EXISTS ssd.v2_rule
+        ADD COLUMN IF NOT EXISTS team_role_name TEXT;
+    ALTER TABLE IF EXISTS ssd.v2_rule
+        ADD COLUMN IF NOT EXISTS team_role_org_id TEXT;
+
+    -- Copy team role details to the rules table
+    UPDATE ssd.v2_rule as rule_update
+       SET team_role_name = target_role_name,
+           team_role_org_id = target_org_id
+       FROM ssd.v2_rule as rule
+            JOIN (SELECT team_role_id, team_role_name AS target_role_name, organization_id AS target_org_id FROM ssd.team_role) as team_role
+            ON rule.team_role_id = team_role.team_role_id
+            WHERE rule_update.team_role_id = team_role.team_role_id;
+
+    -- Assigning constraints for team tole's columns
+    ALTER TABLE IF EXISTS ssd.v2_rule
+        ADD CONSTRAINT rules_team_role_org_fk
+            FOREIGN KEY (team_role_org_id) REFERENCES ssd.v2_project(v2_project_id)
+                ON UPDATE CASCADE
+                ON DELETE CASCADE;
+
+    ALTER TABLE ssd.v2_rule
+        ALTER COLUMN team_role_name SET NOT NULL;
+    ALTER TABLE ssd.v2_rule
+        ALTER COLUMN team_role_org_id SET NOT NULL;
+
+    -- Creating index
+    CREATE INDEX rules_team_role_idx ON ssd.v2_rule (team_role_org_id, team_role_name);
+
+  lb-ssd-db-18.sql: |
+    -- Creating new columns for connecting a user role to its team role via string identifiers
+    ALTER TABLE IF EXISTS ssd.v2_user_role
+        ADD COLUMN IF NOT EXISTS team_role_name TEXT;
+    ALTER TABLE IF EXISTS ssd.v2_user_role
+        ADD COLUMN IF NOT EXISTS team_role_org_id TEXT;
+
+    -- Copy team role details to the user roles table
+    UPDATE ssd.v2_user_role as role_update
+       SET team_role_name = target_role_name,
+           team_role_org_id = target_org_id
+       FROM ssd.v2_user_role as role
+            JOIN (SELECT team_role_id, team_role_name AS target_role_name, organization_id AS target_org_id FROM ssd.team_role) as team_role
+            ON role.team_role_id = team_role.team_role_id
+            WHERE role_update.team_role_id = team_role.team_role_id;
+
+    -- Assigning constraints for team role's columns
+    ALTER TABLE IF EXISTS ssd.v2_user_role
+        ADD CONSTRAINT user_role_team_role_org_fk
+            FOREIGN KEY (team_role_org_id) REFERENCES ssd.v2_project(v2_project_id)
+                ON UPDATE CASCADE
+                ON DELETE CASCADE;
+
+    ALTER TABLE ssd.v2_user_role
+        ALTER COLUMN team_role_name SET NOT NULL;
+    ALTER TABLE ssd.v2_rule
+        ALTER COLUMN team_role_org_id SET NOT NULL;
+
+
+    -- Creating index
+    CREATE INDEX user_role_team_role_idx ON ssd.v2_user_role (team_role_org_id, team_role_name);
+
+  lb-ssd-db-19.sql: |
+    -- Dropping constraints on team_role table and remove columns
+
+    ALTER TABLE ssd.v2_rule DROP CONSTRAINT IF EXISTS rule_team_role__fk;
+    ALTER TABLE ssd.v2_rule DROP COLUMN     IF EXISTS team_role_id;
+
+    ALTER TABLE ssd.v2_user_role DROP CONSTRAINT IF EXISTS v2_user_role_team_role_fk;
+    ALTER TABLE ssd.v2_user_role DROP COLUMN     IF EXISTS team_role_id;
+
+  lb-ssd-db-20.sql: |
+    create index if not exists v2_project_v2_parent_project_id_index on ssd.v2_project (v2_parent_project_id);
+    create index if not exists v2_project2tool_v2_tool_key_index on ssd.v2_project2tool (v2_tool_key);
+    create index if not exists v2_project2tool_v2_project_id_index on ssd.v2_project2tool (v2_project_id);
+    create index if not exists v2_project_custom_property_v2_project_id_index on ssd.v2_project_custom_property (v2_project_id);
+    create index if not exists v2_project_property_v2_project_id_index on ssd.v2_project_property (v2_project_id);
+    create index if not exists v2_project_tool_property_v2_project_tool_property_id_index on ssd.v2_project_tool_property (v2_project_tool_property_id);
+
+  lb-ssd-db-21.sql: |
+    ALTER TABLE IF EXISTS SSD.v2_tool ADD COLUMN IF NOT EXISTS SORT_ORDER SMALLINT;
+  lb-ssd-db-22.sql: |
+    UPDATE SSD.v2_tool SET SORT_ORDER = 100 WHERE SORT_ORDER IS NULL;
+    ALTER TABLE IF EXISTS SSD.v2_tool ALTER COLUMN SORT_ORDER SET DEFAULT 100;
+    ALTER TABLE IF EXISTS SSD.v2_tool ALTER COLUMN SORT_ORDER SET NOT NULL;
+  lb-ssd-db-23.sql: |
+    UPDATE ssd.script
+    SET script_body='{
+     "target": [
+       {
+         "side": 2,
+         "project": {
+           "key": "$parentId$",
+           "repos": [
+             "prod",
+             "raw",
+             "helm"
+           ]
+         }
+       }
+     ]
+    }'
+    WHERE adapter = 'ncd';
+  lb-ssd-db-24.sql: |
+    create or replace view "ssd.operation_status_summary"(project_id, summary_status, creation_done) as
+    SELECT DISTINCT os.project_id,
+                    CASE
+                        WHEN ((SELECT count(*) AS count
+                               FROM operation_status os1
+                               WHERE os1.status = 'IN_PROC'::text
+                                 AND os1.project_id = os.project_id)) > 0 THEN 'IN_PROC'::text
+                        WHEN ((SELECT count(*) AS count
+                               FROM operation_status os1
+                               WHERE os1.status = 'ERROR'::text
+                                 AND os1.project_id = os.project_id)) > 0 THEN 'ERROR'::text
+                        ELSE 'DONE'::text
+                        END AS summary_status,
+                    CASE
+                        WHEN ((SELECT count(*) AS count
+                               FROM operation_status os2
+                               WHERE os2.operation = 'CREATE'::text
+                                 AND os2.status = 'DONE'::text
+                                 AND os2.project_id = os.project_id)) = 1 THEN true
+                        ELSE false
+                        END AS creation_done
+    FROM operation_status os;
+
+    alter table "ssd.operation_status_summary"
+        owner to ssd;
+
+    alter table ssd.operation_status add column if not exists dt_operation timestamp;
+  lb-ssd-db-25.sql: |
+    drop view if exists "ssd.operation_status_summary";
+    create or replace view "ssd.operation_status_summary"(project_id, summary_status, creation_done) as
+    SELECT DISTINCT os.project_id,
+                    CASE
+                        WHEN ((SELECT count(*) AS count
+                               FROM operation_status os1
+                               WHERE os1.status = 'IN_PROC'::text
+                                 AND os1.project_id = os.project_id
+                                 AND os1.operation NOT LIKE '%BIND')) > 0 THEN 'IN_PROC'::text
+                        WHEN ((SELECT count(*) AS count
+                               FROM operation_status os1
+                               WHERE os1.status = 'ERROR'::text
+                                 AND os1.project_id = os.project_id
+                                 AND os1.operation NOT LIKE '%BIND')) > 0 THEN 'ERROR'::text
+                        ELSE 'DONE'::text
+                        END AS summary_status,
+                    CASE
+                        WHEN ((SELECT count(*) AS count
+                               FROM operation_status os2
+                               WHERE os2.operation = 'CREATE'::text
+                                 AND os2.status = 'DONE'::text
+                                 AND os2.project_id = os.project_id)) = 1 THEN true
+                        ELSE false
+                        END AS creation_done
+    FROM operation_status os;
+
+
+  lb-ssd-db-26.sql: |
+    alter table if exists ssd.v2_project add column if not exists project_properties jsonb;
+    alter table if exists ssd.v2_project add column if not exists tools_properties jsonb;
+    alter table if exists ssd.v2_project add column if not exists custom_properties jsonb;
+
+    drop table if exists ssd.operation_status_summary;
+    drop function if exists ssd.get_all_organization_tree;
+    create or replace function get_all_organization_tree(p_max_depth integer DEFAULT NULL::integer)
+        returns TABLE(v2_project_id text, v2_project_key text, is_leaf boolean, created_at timestamp without time zone, created_by text, v2_parent_project_id text, project_properties jsonb, tools_properties jsonb, custom_properties jsonb, tree_level integer)
+        stable
+        language sql
+    as
+    '
+    /*
+
+        Получить дерево всех организаций (с потомками) заданной глубины.
+        Параметры:
+            p_max_depth     ограничение глубины дерева проекта (опционально):
+                            0 - только проект,
+                            1 - проект + потомки 1-го уровня
+                            и т.д.
+
+    */
+    WITH RECURSIVE organization_tree AS (
+        SELECT  *,
+                0 AS tree_level
+        FROM    v2_project
+        WHERE   v2_parent_project_id IS NULL
+        UNION   ALL
+        SELECT  p.*,
+                t.tree_level + 1 AS tree_level
+        FROM    organization_tree AS t
+                    INNER JOIN v2_project AS p
+                               ON p.v2_parent_project_id = t.v2_project_id
+        WHERE   p_max_depth IS NULL
+           OR t.tree_level < p_max_depth
+    )
+    SELECT  ot.v2_project_id,
+            ot.v2_project_key,
+            ot.is_leaf,
+            ot.created_at,
+            ot.created_by,
+            ot.v2_parent_project_id,
+            ot.project_properties,
+            ot.tools_properties,
+            ot.custom_properties,
+            ot.tree_level
+    FROM    organization_tree ot
+    '
+    ;
+
+    alter function get_all_organization_tree(integer) owner to ssd;
+
+    drop function if exists ssd.get_project_subtree;
+    create or replace function get_project_subtree(p_project_id text, p_max_depth integer DEFAULT NULL::integer)
+        returns TABLE(v2_project_id text, v2_project_key text, is_leaf boolean, created_at timestamp without time zone, created_by text, v2_parent_project_id text, project_properties jsonb, tools_properties jsonb, custom_properties jsonb, tree_level integer)
+        stable
+        language sql
+    as
+    '
+    /*
+
+        Получить дерево проекта (с потомками) заданной глубины.
+        Параметры:
+            p_project_id    ID проекта
+            p_max_depth     ограничение глубины дерева проекта (опционально):
+                            0 - только проект,
+                            1 - проект + потомки 1-го уровня
+                            и т.д.
+
+    */
+    WITH RECURSIVE project_subtree AS (
+        SELECT  *,
+                0 AS tree_level
+        FROM    v2_project
+        WHERE   v2_project_id = p_project_id
+        UNION   ALL
+        SELECT  p.*,
+                t.tree_level + 1 AS tree_level
+        FROM    project_subtree AS t
+                    INNER JOIN v2_project AS p
+                               ON p.v2_parent_project_id = t.v2_project_id
+        WHERE   p_max_depth IS NULL
+           OR t.tree_level < p_max_depth
+    )
+    SELECT  v2_project_id,
+            v2_project_key,
+            is_leaf,
+            created_at,
+            created_by,
+            v2_parent_project_id,
+            project_properties,
+            tools_properties,
+            custom_properties,
+            tree_level
+    FROM    project_subtree
+    '
+    ;
+
+    alter function get_project_subtree(text, integer) owner to ssd;
+
+    drop view if exists ssd.operation_status_summary_optimized;
+    create or replace view operation_status_summary_optimized(project_id, summary_status, creation_done) as
+    SELECT operation_status.project_id,
+           CASE min(
+                   CASE
+                       WHEN operation_status.operation <> 'BIND'::text AND operation_status.operation <> 'UNBIND'::text AND
+                            operation_status.status = 'IN_PROC'::text THEN 0
+                       WHEN operation_status.operation <> 'BIND'::text AND operation_status.operation <> 'UNBIND'::text AND
+                            operation_status.status = 'ERROR'::text THEN 1
+                       WHEN operation_status.operation <> 'BIND'::text AND operation_status.operation <> 'UNBIND'::text AND
+                            operation_status.status = 'DONE'::text THEN 2
+                       ELSE 3
+                       END)
+               WHEN 0 THEN 'IN_PROC'::text
+               WHEN 1 THEN 'ERROR'::text
+               WHEN 2 THEN 'DONE'::text
+               ELSE 'DONE'::text
+               END AS summary_status,
+           CASE min(
+                   CASE
+                       WHEN operation_status.operation = 'CREATE'::text AND operation_status.status <> 'DONE'::text THEN 0
+                       WHEN operation_status.operation = 'CREATE'::text AND operation_status.status = 'DONE'::text THEN 1
+                       ELSE 2
+                       END)
+               WHEN 0 THEN false
+               WHEN 1 THEN true
+               ELSE false
+               END AS creation_done
+    FROM operation_status
+    GROUP BY operation_status.project_id;
+
+    alter view operation_status_summary_optimized
+        owner to ssd;
+
+
+
+
+
+
+  lb-ssd-db-27.sql: |
+    DELETE
+    FROM ssd.v2_property_key
+    WHERE v2_p_key = 'npm_scopes';
+    INSERT INTO ssd.v2_property_key (v2_p_key, description, regex_pattern, data_type_id)
+    VALUES ('npm_scopes',
+            'npm_scopes это oбласть видимости артефактов при загрузке в npm-репозиторий',
+            null,
+            (select dt."data_type_id"
+             from ssd.data_type dt
+             where dt."data_type_name" = 'String')) ON CONFLICT DO NOTHING;
+
+
+  lb-ssd-db-28.sql: |
+    UPDATE ssd.v2_tools_adapter AS a
+    SET description = t.v2_tool_name
+        FROM ssd.v2_tool AS t
+    WHERE a.v2_tools_adapter_key = t.v2_tools_adapter_key;
+
+    UPDATE ssd.v2_tools_adapter
+    SET description = 'IAM'
+    WHERE v2_tools_adapter_key = 'keycloak';
+  lb-ssd-db-29.sql: |
+    ALTER TABLE ssd.completed_transaction DROP CONSTRAINT IF EXISTS completed_transaction_v2_proj_fk;
+
+  lb-ssd-db-30.sql: |
+    UPDATE ssd.script
+    SET script_body='{
+      "target": [
+        {
+          "side": 0,
+          "execute-for-level": 2,
+          "project-areas": [
+            {
+              "key": "RepoProject",
+              "name": "Репозитории",
+              "description": null,
+              "bundleKey": "$bundleKey$",
+              "parent": {"id":"$parentId$","bundleKey": "$bundleKey$", "leaf": false},
+              "leaf": false
+            }
+          ]
+        }
+      ]
+    }'
+    WHERE adapter = 'gitlab';
+    drop table if exists ssd.v2_project_property;
+    drop table if exists ssd.v2_project_custom_property;
+    drop table if exists ssd.v2_project_tool_property;
+    drop table if exists ssd.v2_project2tool;
+  lb-ssd-db-31.sql: |
+    -- ssd.tool_parameter
+    create table if not exists ssd.tool_parameter
+    (
+        tool_parameter_id bigserial
+            constraint tool_parameter_pk
+                primary key,
+        v2_tool_key       text   not null
+            constraint tool_parameter_tool_fk
+                references ssd.v2_tool
+                on update cascade on delete cascade,
+        p_name            text   not null,
+        p_value           text,
+        data_type_id      bigint not null
+            constraint tool_parameter_dtype_fk
+                references ssd.data_type
+                on update cascade on delete cascade,
+        show_ui           boolean default true
+    );
+
+    alter table tool_parameter
+        owner to ssd;
+
+    create unique index if not exists tool_parameter_tool_parameter_id_uindex
+        on ssd.tool_parameter (tool_parameter_id);
+
+    create sequence if not exists ssd.tool_parameter_tool_parameter_id_seq;
+    alter sequence ssd.tool_parameter_tool_parameter_id_seq owner to ssd;
+    alter sequence ssd.tool_parameter_tool_parameter_id_seq owned by ssd.tool_parameter.tool_parameter_id;
+
+    -- ssd.tool_ext_command
+    create table if not exists ssd.tool_ext_command
+    (
+        tool_ext_command_id bigserial
+            constraint tool_ext_command_pk
+                primary key,
+        v2_tool_key         text                 not null
+            constraint tool_ext_command_tool_fk
+                references ssd.v2_tool
+                on update cascade on delete cascade,
+        command             text                 not null,
+        class_implemented   text,
+        description         text,
+        order_num           integer default 0,
+        only_if_prev_succ   boolean default true not null
+    );
+
+    alter table tool_ext_command
+        owner to ssd;
+
+    create unique index if not exists tool_ext_command_tool_ext_command_id_uindex
+        on ssd.tool_ext_command (tool_ext_command_id);
+
+    create sequence if not exists ssd.tool_ext_command_tool_ext_command_id_seq;
+    alter sequence ssd.tool_ext_command_tool_ext_command_id_seq owner to ssd;
+    alter sequence ssd.tool_ext_command_tool_ext_command_id_seq owned by ssd.tool_ext_command.tool_ext_command_id;
+
+    -- ssd.tool_ext_command_param
+    create table if not exists ssd.tool_ext_command_param
+    (
+        tool_ext_command_param_id bigserial
+            constraint tool_ext_command_param_pk
+                primary key,
+        tool_ext_command_id       bigint            not null
+            constraint tool_ext_command_param_cmd_fk
+                references ssd.tool_ext_command
+                on update cascade on delete cascade,
+        p_name                    text              not null,
+        p_value                   text,
+        data_type_id              bigint            not null
+            constraint tool_ext_command_param_dtype_fk
+                references ssd.data_type
+                on update cascade on delete cascade,
+        order_num                 integer default 0 not null
+    );
+
+    alter table tool_ext_command_param
+        owner to ssd;
+
+    create unique index if not exists tool_ext_command_param_tool_ext_command_param_id_uindex
+        on ssd.tool_ext_command_param (tool_ext_command_param_id);
+
+    create sequence if not exists ssd.tool_ext_command_param_tool_ext_command_param_id_seq;
+    alter sequence ssd.tool_ext_command_param_tool_ext_command_param_id_seq owner to ssd;
+    alter sequence ssd.tool_ext_command_param_tool_ext_command_param_id_seq owned by ssd.tool_ext_command_param.tool_ext_command_param_id;
+
+
+
+
+
+  lb-ssd-db-32.sql: |
+    delete from ssd.script s where s.adapter = 'gitlab';
+  lb-ssd-db-33.sql: |
+    --
+    -- Объекты сервиса ssd-kafka-integration-adapter
+    --
+    create table if not exists ext_request
+    (
+        req_id        text      not null
+            constraint ext_request_pk
+                primary key,
+        tstamp        timestamp not null,
+        target_system text      not null,
+        e_type        text      not null,
+        e_operation   text      not null,
+        orig_msg      jsonb     not null
+    );
+
+    alter table ext_request
+        owner to ssd;
+
+    create unique index if not exists ext_request_req_id_uindex
+        on ssd.ext_request (req_id);
+
+    create table if not exists ext_request_content
+    (
+        req_cont_id  bigserial
+            constraint ext_request_content_pk
+                primary key,
+        req_id       text not null
+            constraint ext_request_content_req_fk
+                references ssd.ext_request
+                on update cascade on delete cascade,
+        project_id   text,
+        project_key  text,
+        project_name text,
+        description  text,
+        owner_login  text,
+        parent_id    text,
+        a_role       text,
+        old_role     text,
+        new_role     text,
+        email        text,
+        user_name    text
+    );
+
+    alter table ext_request_content
+        owner to ssd;
+
+    create unique index if not exists ext_request_content_req_cont_id_uindex
+        on ssd.ext_request_content (req_cont_id);
+
+    create sequence if not exists ext_request_content_req_cont_id_seq;
+
+    alter sequence ext_request_content_req_cont_id_seq owner to ssd;
+
+    alter sequence ext_request_content_req_cont_id_seq owned by ssd.ext_request_content.req_cont_id;
+
+    create table if not exists ext_request_tools
+    (
+        req_cont_tools_id bigserial
+            constraint ext_request_tools_pk
+                primary key,
+        req_cont_id       bigint not null
+            constraint ext_request_tools_cont_fk
+                references ssd.ext_request_content
+                on update cascade on delete cascade,
+        tool_key          text   not null
+            constraint ext_request_tools_tool_fk
+                references ssd.v2_tool
+                on update cascade on delete cascade,
+        params            text
+    );
+
+    alter table ext_request_tools
+        owner to ssd;
+
+    create unique index if not exists ext_request_tools_req_cont_tools_id_uindex
+        on ssd.ext_request_tools (req_cont_tools_id);
+
+    create sequence if not exists ext_request_tools_req_cont_tools_id_seq;
+
+    alter sequence ext_request_tools_req_cont_tools_id_seq owner to ssd;
+
+    alter sequence ext_request_tools_req_cont_tools_id_seq owned by ssd.ext_request_tools.req_cont_tools_id;
+
+    create table if not exists ext_response
+    (
+        req_id        text      not null
+            constraint ext_response_pk
+                primary key
+            constraint ext_response_req_fk
+                references ssd.ext_request
+                on update cascade on delete cascade,
+        status        text      not null,
+        tstamp        timestamp not null,
+        target_system text      not null,
+        orig_msg      jsonb     not null
+    );
+
+    alter table ext_response
+        owner to ssd;
+
+    create unique index if not exists ext_response_req_id_uindex
+        on ssd.ext_response (req_id);
+
+    create table if not exists ext_response_tools
+    (
+        resp_tool_id        bigserial
+            constraint ext_response_tools_pk
+                primary key,
+        req_id              text  not null
+            constraint ext_response_tools_resp_fk
+                references ssd.ext_response
+                on update cascade on delete cascade,
+        tool_resp_orig_msg  text not null,
+        tool_key          text   not null
+            constraint ext_request_adapter_tools_tool_fk
+                references ssd.v2_tool
+                on update cascade on delete cascade,
+        status              text  not null
+    );
+
+    alter table ext_response_tools
+        owner to ssd;
+
+    create unique index if not exists ext_response_tools_resp_tool_id_uindex
+        on ssd.ext_response_tools (resp_tool_id);
+
+    create sequence if not exists ext_response_tools_resp_tool_id_seq;
+
+    alter sequence ext_response_tools_resp_tool_id_seq owner to ssd;
+
+    alter sequence ext_response_tools_resp_tool_id_seq owned by ssd.ext_response_tools.resp_tool_id;
+  lb-ssd-db-34.sql: |
+    CREATE TABLE IF NOT EXISTS shedlock(name VARCHAR(64) NOT NULL, lock_until TIMESTAMP NOT NULL, locked_at TIMESTAMP NOT NULL, locked_by VARCHAR(255) NOT NULL, PRIMARY KEY (name));
+    alter table shedlock owner to ssd;
+    create unique index if not exists shedlock_id_uindex on ssd.shedlock(name);
+  lb-ssd-db-35.sql: |
+    ALTER TABLE ssd.operation_status ALTER COLUMN user_name TYPE text;
+  lb-ssd-db-36.sql: |
+    ALTER TABLE ssd.completed_transaction_task ADD COLUMN IF NOT EXISTS is_restarted bool DEFAULT false;
+    UPDATE ssd.completed_transaction_task SET is_restarted = false;
+    ALTER TABLE ssd.completed_transaction_task ALTER COLUMN is_restarted SET NOT NULL;
+  lb-ssd-db-37.sql: |
+    ALTER TABLE ssd.event_log ADD COLUMN IF NOT EXISTS issuer_type text;
+    ALTER TABLE ssd.event_log ADD COLUMN IF NOT EXISTS project_info text;
+    ALTER TABLE ssd.event_log ADD COLUMN IF NOT EXISTS user_info text;
+
+  lb-ssd-db-38.sql: |
+    CREATE TABLE IF NOT EXISTS ssd.tool_type
+    (
+        "tool_type" text CONSTRAINT tool_type_pk PRIMARY KEY,
+        "description"      text
+    );
+
+    ALTER TABLE IF EXISTS ssd.tool_type
+       OWNER TO ssd;
+
+    INSERT INTO ssd.tool_type (tool_type, description) VALUES ('artifactory', 'Nexus ci/cd') ON CONFLICT DO NOTHING;
+    INSERT INTO ssd.tool_type (tool_type, description) VALUES ('pipeliner', 'Jenkins ci/cd') ON CONFLICT DO NOTHING;
+    INSERT INTO ssd.tool_type (tool_type, description) VALUES ('sourcecontrol', 'Source control') ON CONFLICT DO NOTHING;
+    INSERT INTO ssd.tool_type (tool_type, description) VALUES ('gitlab', 'Gitlab') ON CONFLICT DO NOTHING;
+    INSERT INTO ssd.tool_type (tool_type, description) VALUES ('undefined', 'filler') ON CONFLICT DO NOTHING;
+
+    ALTER TABLE IF EXISTS ssd.v2_tool ADD COLUMN IF NOT EXISTS tool_type text;
+
+    UPDATE ssd.v2_tool SET tool_type = 'artifactory' where ssd.v2_tool.v2_tool_key = 'nci' and ssd.v2_tool.tool_type is null;
+    UPDATE ssd.v2_tool SET tool_type = 'artifactory' where ssd.v2_tool.v2_tool_key = 'ncd' and ssd.v2_tool.tool_type is null;
+    UPDATE ssd.v2_tool SET tool_type = 'pipeliner' where ssd.v2_tool.v2_tool_key = 'jci' and ssd.v2_tool.tool_type is null;
+    UPDATE ssd.v2_tool SET tool_type = 'pipeliner' where ssd.v2_tool.v2_tool_key = 'jcd' and ssd.v2_tool.tool_type is null;
+    UPDATE ssd.v2_tool SET tool_type = 'sourcecontrol' where ssd.v2_tool.v2_tool_key = 'sc' and ssd.v2_tool.tool_type is null;
+    UPDATE ssd.v2_tool SET tool_type = 'gitlab' where ssd.v2_tool.v2_tool_key = 'track' and ssd.v2_tool.tool_type is null;
+    UPDATE ssd.v2_tool SET tool_type = 'undefined' where ssd.v2_tool.tool_type is null;
+
+    ALTER TABLE IF EXISTS ssd.v2_tool
+        DROP CONSTRAINT IF EXISTS tool_type_tool_type_fk;
+    ALTER TABLE IF EXISTS ssd.v2_tool
+        ADD CONSTRAINT tool_type_tool_type_fk
+            FOREIGN KEY (tool_type) REFERENCES ssd.tool_type(tool_type)
+                ON UPDATE CASCADE
+                ON DELETE CASCADE;
+
+
+  lb-ssd-db-39.sql: |
+
+    ALTER TABLE IF EXISTS ssd.v2_tool
+        ADD COLUMN IF NOT EXISTS tool_in_type_ordnum int;
+
+    INSERT INTO ssd.v2_property_key VALUES ('owner-tool-key', 'ключ базового инструмента, для которого создана запись (многоэкз. ивенты)', null, 3)
+    ON CONFLICT DO NOTHING;
+
+    INSERT INTO ssd.v2_property_key VALUES ('original-project-key', 'оригинальный ключ проекта по ивенту (многоэкз. ивенты)', null, 3)
+    ON CONFLICT DO NOTHING;
+
+    CREATE TABLE IF NOT EXISTS ssd.event_project
+    (
+        "event_project_id" text CONSTRAINT event_project_pk PRIMARY KEY,
+        "event_id" text NOT NULL,
+        "tool_key" text  CONSTRAINT event_project_v2_tool_fk
+            REFERENCES ssd.v2_tool ON UPDATE CASCADE ON DELETE CASCADE,
+        "orig_project_id" text NOT NULL,
+        "v2_project_id"    text CONSTRAINT event_project_v2_project_fk
+            REFERENCES ssd.v2_project ON UPDATE CASCADE ON DELETE CASCADE
+    );
+
+    ALTER TABLE IF EXISTS ssd.event_project
+        OWNER TO ssd;
+
+
+  lb-ssd-db-40.sql: |
+    --
+    -- allowed tool-config property named
+    --
+    CREATE TABLE IF NOT EXISTS ssd.tool_config_property
+    (
+        "tool_config_pname" text CONSTRAINT tool_config_pname_pk PRIMARY KEY,
+        "description" text NOT NULL
+    );
+    ALTER TABLE IF EXISTS ssd.tool_config_property
+        OWNER TO ssd;
+
+    CREATE UNIQUE INDEX IF NOT EXISTS tool_config_pname_pk_uindex on ssd.tool_config_property (tool_config_pname);
+
+    --
+    -- tool-config properties
+    --
+    CREATE TABLE IF NOT EXISTS ssd.tool_config
+    (
+        "tool_config_id" BIGSERIAL CONSTRAINT tool_config_pk PRIMARY KEY,
+        "tool_key" text  REFERENCES ssd.v2_tool(v2_tool_key)
+            ON UPDATE CASCADE ON DELETE CASCADE,
+        "p_name" text NOT NULL REFERENCES ssd.tool_config_property(tool_config_pname)
+            ON UPDATE CASCADE ON DELETE CASCADE,
+        "p_value" text NOT NULL,
+        "regex_pattern" text
+    );
+
+    ALTER TABLE IF EXISTS ssd.tool_config
+        OWNER TO ssd;
+
+
+    CREATE UNIQUE INDEX IF NOT EXISTS tool_config_pk_uindex on ssd.tool_config (tool_config_id);
+    CREATE UNIQUE INDEX IF NOT EXISTS tool_config_tool_pname_uindex on ssd.tool_config (tool_key, p_name) WHERE tool_key IS NULL;
+
+    CREATE SEQUENCE IF NOT EXISTS ssd."tool_config_toolConfigId_seq";
+    ALTER SEQUENCE ssd."tool_config_toolConfigId_seq" OWNER TO ssd;
+    ALTER SEQUENCE ssd."tool_config_toolConfigId_seq" OWNED BY ssd.tool_config."tool_config_id";
+
+    INSERT INTO ssd.tool_config_property VALUES ('web-url-schema', 'схема (протокол) для урла')
+    ON CONFLICT DO NOTHING;
+
+    INSERT INTO ssd.tool_config_property VALUES ('web-url-fqdn-ip', 'хост/адрес')
+    ON CONFLICT DO NOTHING;
+
+    INSERT INTO ssd.tool_config_property VALUES ('web-url-port', 'порт')
+    ON CONFLICT DO NOTHING;
+
+    INSERT INTO ssd.tool_config_property VALUES ('web-url-prefix', 'префикс')
+    ON CONFLICT DO NOTHING;
+
+    INSERT INTO ssd.tool_config (p_name, p_value) VALUES ( 'web-url-schema', 'https')
+    ON CONFLICT DO NOTHING;
+    #INSERT INTO ssd.tool_config (p_name, p_value) VALUES ( 'web-url-fqdn-ip', 'dev.pd10.pvw.sbt')
+    INSERT INTO ssd.tool_config (p_name, p_value) VALUES ( 'web-url-fqdn-ip', 'proxy.voda.ru/ssd')
+    ON CONFLICT DO NOTHING;
+    INSERT INTO ssd.tool_config (p_name, p_value) VALUES ( 'web-url-prefix', '/ssd/tools/${toolKey}')
+    ON CONFLICT DO NOTHING;
+
+  lb-ssd-db-41.sql: |
+    alter table if exists ssd.team_role alter column description set not null;
+
+  lb-ssd-db-42.sql: |
+    create table if not exists ssd.v2_users
+    (
+        id              text
+                            primary key,
+        user_login      text
+                            not null,
+        created_at      timestamp
+                            not null
+                            default now(),
+        last_login_at   timestamp,
+        is_active       bool
+                            not null
+                            default true,
+        first_name      text
+                            not null,
+        last_name       text
+                            not null,
+        middle_name     text,
+        email           text
+                            not null,
+        UNIQUE (id),
+        UNIQUE (email),
+        UNIQUE (user_login)
+    );
+
+  lb-ssd-db-43.sql: |
+    CREATE TABLE IF NOT EXISTS ssd.v2_global_role
+    (
+        global_role_key     text        PRIMARY KEY,
+        global_role_name    text        NOT NULL UNIQUE,
+        description         text        NOT NULL
+    );
+    ALTER TABLE IF EXISTS ssd.v2_global_role
+        OWNER TO ssd;
+
+
+    CREATE TABLE IF NOT EXISTS ssd.v2_user_global_role
+    (
+        user_global_role_id     BIGSERIAL PRIMARY KEY,
+        created_at              TIMESTAMP NOT NULL DEFAULT now(),
+        email                   text NOT NULL REFERENCES ssd.v2_users(email) ON DELETE CASCADE,
+        global_role_key         text NOT NULL REFERENCES ssd.v2_global_role(global_role_key) ON DELETE CASCADE
+    );
+
+    ALTER TABLE IF EXISTS ssd.v2_user_global_role
+        OWNER TO ssd;
+
+  lb-ssd-db-44.sql: |
+    INSERT INTO ssd.v2_global_role values ('SSD_USER', 'Роль пользователя', 'Роль пользователя') ON CONFLICT DO NOTHING;
+    INSERT INTO ssd.v2_global_role values ('SSD_SYSTEM_ADMIN', 'Роль системного администратора', 'Роль системного администратора') ON CONFLICT DO NOTHING;
+    INSERT INTO ssd.v2_global_role values ('SSD_SERVICE_ROLE', 'Сервисная роль', 'Сервисная роль, предназначена для межкомпонентной авторизации') ON CONFLICT DO NOTHING;
+    INSERT INTO ssd.v2_global_role values ('SSD_ORG_MANAGER', 'Роль менеджера организаций', 'Создание новых организаций, редактирование существующих') ON CONFLICT DO NOTHING;
+    INSERT INTO ssd.v2_global_role values ('SSD_ORG_USER_MANAGER', 'Роль менеджера пользователей', 'Управление пользователями на уровне организации') ON CONFLICT DO NOTHING;
+    INSERT INTO ssd.v2_global_role values ('SSD_ASSET_MANAGER', 'Роль менеджера ресурсов для бокового меню', 'Роль менеджера ресурсов для бокового меню') ON CONFLICT DO NOTHING;
+    INSERT INTO ssd.v2_global_role values ('SSD_MENU_MANAGER', 'Роль менеджера конфигурации компонента бокового меню', 'Роль менеджера конфигурации компонента бокового меню') ON CONFLICT DO NOTHING;
+
+  lb-ssd-db-45.sql: |
+    CREATE TABLE IF NOT EXISTS ssd.v3_user_role
+    (
+        user_role_id bigserial
+            constraint v3_user_role_pk
+                primary key,
+        created_at   timestamp not null,
+        updated_at   timestamp not null,
+        user_id      text      not null
+            constraint v3_user_id_id_fk
+                references ssd.v2_users
+                on update cascade on delete cascade,
+        role_value   text      not null,
+        project_id   text      not null
+            constraint v3_user_role_project_fk
+                references ssd.v2_project
+                on update cascade on delete cascade,
+        rule_type_id text      not null
+            constraint v3_user_rule_type_fk
+                references ssd.rule_type
+                on update cascade on delete cascade,
+        tool_key     text      not null
+            constraint v3_user_role_tool_type_fk
+                references ssd.v2_tool
+                on update cascade on delete cascade,
+        team_role_name text    not null,
+        team_role_org_id text    not null
+            constraint v3_user_role_v2_project_id
+                references ssd.v2_project
+                on update cascade on delete cascade
+    );
+
+  lb-ssd-db-46.sql: |
+    ALTER TABLE IF EXISTS ssd.v2_user_global_role
+    ADD COLUMN IF NOT EXISTS user_id TEXT;
+
+  lb-ssd-db-47.sql: |
+    CREATE TABLE IF NOT EXISTS ssd.email_segments (
+                                                      segment VARCHAR(255) PRIMARY KEY
+    );
+    
+    alter table ssd.email_segments
+        owner to ssd;
+    
+    CREATE TABLE IF NOT EXISTS ssd.users_emails (
+                                                user_id VARCHAR(255) NOT NULL REFERENCES ssd.v2_users(id),
+                                                email VARCHAR(255) PRIMARY KEY,
+                                                segment VARCHAR(255) NOT NULL REFERENCES ssd.email_segments(segment) ON DELETE CASCADE ,
+                                                is_primary BOOLEAN NOT NULL DEFAULT FALSE,
+                                                unique (user_id, segment)
+    );
+    
+    alter table ssd.users_emails
+        owner to ssd;
+    
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_unique_primary_email
+        ON ssd.users_emails (user_id)
+        WHERE is_primary = TRUE;
+    
+    INSERT INTO ssd.email_segments VALUES ('sigma') ON CONFLICT DO NOTHING;
+    
+    INSERT INTO ssd.users_emails (user_id, email, segment, is_primary)
+    SELECT id, email, 'sigma', true
+    FROM v2_users
+    ON CONFLICT (email) DO NOTHING;
+
+
+  lb-ssd-db-48.sql: |
+    CREATE TABLE IF NOT EXISTS ssd.v2_project_tools_entities (
+                                                    id BIGSERIAL PRIMARY KEY,
+                                                    project_id VARCHAR(255) NOT NULL REFERENCES ssd.v2_project(v2_project_id) ON DELETE CASCADE,
+                                                    tool_key VARCHAR(255) NOT NULL REFERENCES ssd.v2_tool(v2_tool_key) ON DELETE CASCADE,
+                                                    tool_entity_id VARCHAR(255),
+                                                    unique (project_id, tool_key, tool_entity_id)
+    );
+    GRANT ALL PRIVILEGES ON TABLE ssd.v2_project_tools_entities TO ssd;
+    
+    CREATE TABLE IF NOT EXISTS ssd.v2_project_tools_entities_properties (
+                                                                project_to_tool_entity_id bigint REFERENCES ssd.v2_project_tools_entities(id) ON DELETE CASCADE,
+                                                                property_key VARCHAR(255) NOT NULL,
+                                                                property_value VARCHAR(255) NOT NULL,
+                                                                PRIMARY KEY (project_to_tool_entity_id, property_key)
+    );
+    GRANT ALL PRIVILEGES ON TABLE ssd.v2_project_tools_entities_properties TO ssd;
+
+  lb-ssd-db-49.sql: |
+    -- 1. Создаем временный тип для работы с JSONB
+    CREATE TYPE jsonb_prop_type AS (key TEXT, value TEXT);
+    
+    -- 2. Вставляем записи в v2_project_tools_entities
+    INSERT INTO ssd.v2_project_tools_entities (project_id, tool_key, tool_entity_id)
+    SELECT v2p.v2_project_id, tool_key, NULL
+    FROM ssd.v2_project v2p,
+         LATERAL jsonb_object_keys(v2p.tools_properties->'toolsProperties') AS tool_key
+    WHERE EXISTS (
+        SELECT 1
+        FROM v2_tool t
+        WHERE t.v2_tool_key = tool_key
+    );
+    
+    -- 3. Вставляем записи в v2_project_tools_entities_properties
+    INSERT INTO ssd.v2_project_tools_entities_properties (
+        project_to_tool_entity_id,
+        property_key,
+        property_value
+    )
+    SELECT pte.id, prop.key, prop.value
+    FROM v2_project v2p
+             JOIN ssd.v2_project_tools_entities pte ON pte.project_id = v2p.v2_project_id
+             CROSS JOIN LATERAL jsonb_array_elements(
+            v2p.tools_properties->'toolsProperties'->pte.tool_key
+                                ) AS tool_props
+             CROSS JOIN LATERAL jsonb_populate_record(NULL::jsonb_prop_type, tool_props) AS prop(key, value)
+    ON CONFLICT (project_to_tool_entity_id, property_key) DO NOTHING;
+    
+    DROP TYPE IF EXISTS jsonb_prop_type;
+
+
+  side-menu-database-change-log.xml: |
+    <?xml version="1.0" encoding="UTF-8"?>
+    <databaseChangeLog xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                       xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+                       xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.5.xsd">
+        <include file="lb-ssd-side-menu-svc-db-01.sql" relativeToChangelogFile="true"/>
+        <include file="lb-ssd-side-menu-svc-db-02.sql" relativeToChangelogFile="true"/>
+        <include file="lb-ssd-side-menu-svc-db-03.sql" relativeToChangelogFile="true"/>
+        <include file="lb-ssd-side-menu-svc-db-04.sql" relativeToChangelogFile="true"/>
+        <include file="lb-ssd-side-menu-svc-db-05.sql" relativeToChangelogFile="true"/>
+        <include file="lb-ssd-side-menu-svc-db-06.sql" relativeToChangelogFile="true"/> 
+        <include file="lb-ssd-side-menu-svc-db-07.sql" relativeToChangelogFile="true"/>
+        <include file="lb-ssd-side-menu-svc-db-08.sql" relativeToChangelogFile="true"/>
+        <include file="lb-ssd-side-menu-svc-db-09.sql" relativeToChangelogFile="true"/>
+        <include file="lb-ssd-side-menu-svc-db-10.sql" relativeToChangelogFile="true"/>
+        <include file="lb-ssd-side-menu-svc-db-11.sql" relativeToChangelogFile="true"/>
+        <include file="lb-ssd-side-menu-svc-db-12.sql" relativeToChangelogFile="true"/>
+        <include file="lb-ssd-side-menu-svc-db-13.sql" relativeToChangelogFile="true"/>
+        <include file="lb-ssd-side-menu-svc-db-14.sql" relativeToChangelogFile="true"/>
+        <include file="lb-ssd-side-menu-svc-db-15.sql" relativeToChangelogFile="true"/>
+        <include file="lb-ssd-side-menu-svc-db-16.sql" relativeToChangelogFile="true"/>
+    </databaseChangeLog>
+
+  lb-ssd-side-menu-svc-db-01.sql: |
+    -- CREATE SCHEMA IF NOT EXISTS ssd_menu_svc;
+    -- ALTER SCHEMA ssd_menu_svc OWNER TO ssd;
+
+    CREATE TABLE IF NOT EXISTS ssd_menu_svc.asset_type
+    (
+        key     TEXT NOT NULL PRIMARY KEY,
+        name    TEXT NOT NULL
+    );
+    ALTER TABLE ssd_menu_svc.asset_type OWNER TO ssd;
+
+    INSERT INTO ssd_menu_svc.asset_type(key, name)
+                VALUES
+                    ('icon', 'Иконки пунктов'),
+                    ('logo', 'Логотипы')
+                 ON CONFLICT DO NOTHING;
+
+    CREATE TABLE IF NOT EXISTS ssd_menu_svc.asset
+    (
+        type    TEXT NOT NULL
+                REFERENCES ssd_menu_svc.asset_type(key),
+        key     TEXT NOT NULL,
+        value   TEXT NOT NULL,
+        PRIMARY KEY (type, key)
+    );
+    ALTER TABLE ssd_menu_svc.asset OWNER TO ssd;
+
+  lb-ssd-side-menu-svc-db-02.sql: |
+    CREATE TABLE IF NOT EXISTS ssd_menu_svc.property
+    (
+        key     TEXT NOT NULL PRIMARY KEY,
+        value     TEXT NOT NULL
+    );
+    ALTER TABLE ssd_menu_svc.property OWNER TO ssd;
+
+  lb-ssd-side-menu-svc-db-03.sql: |
+    INSERT INTO ssd_menu_svc.property (key, value) VALUES ('app.org.logo.key', 'defaultLogo') ON CONFLICT DO NOTHING;
+
+  lb-ssd-side-menu-svc-db-04.sql: |
+    CREATE TABLE IF NOT EXISTS ssd_menu_svc.context_config
+    (
+        content             json,
+        schema_version      text not null
+    );
+    ALTER TABLE ssd_menu_svc.context_config OWNER TO ssd;
+
+  lb-ssd-side-menu-svc-db-05.sql: |
+    #INSERT INTO ssd_menu_svc.property (key, value) VALUES ('ssd-ui-url', 'https://dev.pd10.pvw.sbt') ON CONFLICT DO NOTHING;
+    INSERT INTO ssd_menu_svc.property (key, value) VALUES ('ssd-ui-url', 'https://proxy.voda.ru/ssd') ON CONFLICT DO NOTHING;
+
+  lb-ssd-side-menu-svc-db-06.sql: |
+    CREATE TABLE IF NOT EXISTS ssd_menu_svc.favourite_user_projects
+    (
+        user_id             text not null,
+        tenant              text,
+        project_id          text not null,
+        primary key (user_id, project_id)
+    );
+    ALTER TABLE ssd_menu_svc.favourite_user_projects OWNER TO ssd;
+
+  lb-ssd-side-menu-svc-db-07.sql: |
+    CREATE TABLE IF NOT EXISTS ssd_menu_svc.latest_user_projects
+    (
+        user_id             text not null,
+        tenant              text,
+        project_id          text not null,
+        sort_order          integer,
+        primary key (user_id, project_id)
+    );
+    ALTER TABLE ssd_menu_svc.latest_user_projects OWNER TO ssd;
+
+  lb-ssd-side-menu-svc-db-08.sql: |
+    UPDATE ssd_menu_svc.property SET VALUE = 'default-logo' WHERE key = 'app.org.logo.key';
+
+  lb-ssd-side-menu-svc-db-09.sql: |
+    CREATE TABLE IF NOT EXISTS ssd_menu_svc.valid_menu_schema
+    (
+        schema_version             text not null primary key ,
+        json_schema                json
+    );
+    ALTER TABLE ssd_menu_svc.valid_menu_schema OWNER TO ssd;
+
+  lb-ssd-side-menu-svc-db-10.sql: |
+    insert into ssd_menu_svc.valid_menu_schema(schema_version, json_schema) values ('1.0', '{
+      "$schema": "https://json-schema.org/draft/2019-09/schema",
+      "$defs": {
+        "Map(String,Object)-nullable": {
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "Map(String,String)-nullable": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "MenuConfig-nullable": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "groups": {
+              "type": [
+                "array",
+                "null"
+              ],
+              "items": {
+                "type": "object",
+                "properties": {
+                  "children": {
+                    "type": [
+                      "array",
+                      "null"
+                    ],
+                    "items": {
+                      "$ref": "#/$defs/MenuItemConfig"
+                    }
+                  },
+                  "key": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "label": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                },
+                "additionalProperties": false
+              }
+            },
+            "items": {
+              "type": [
+                "array",
+                "null"
+              ],
+              "items": {
+                "$ref": "#/$defs/MenuItemConfig"
+              }
+            }
+          },
+          "additionalProperties": false
+        },
+        "MenuItemConfig": {
+          "type": "object",
+          "properties": {
+            "action": {
+              "anyOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "type": "string",
+                  "enum": [
+                    "show:options",
+                    "logout"
+                  ]
+                }
+              ]
+            },
+            "as": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "component": {
+                  "anyOf": [
+                    {
+                      "type": "null"
+                    },
+                    {
+                      "type": "string",
+                      "enum": [
+                        "Link",
+                        "ToolMenuLink",
+                        "ServerTime",
+                        "ToolMenu",
+                        "Default"
+                      ]
+                    }
+                  ]
+                },
+                "props": {
+                  "$ref": "#/$defs/Map(String,Object)-nullable"
+                }
+              },
+              "additionalProperties": false
+            },
+            "children": {
+              "type": [
+                "array",
+                "null"
+              ],
+              "items": {
+                "$ref": "#/$defs/MenuItemConfig"
+              }
+            },
+            "disabled": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "hint": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "icon": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "key": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "label": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "link": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "params": {
+                  "$ref": "#/$defs/Map(String,String)-nullable"
+                },
+                "type": {
+                  "anyOf": [
+                    {
+                      "type": "null"
+                    },
+                    {
+                      "type": "string",
+                      "enum": [
+                        "constant",
+                        "well-known-url",
+                        "template",
+                        "organization-tool-property",
+                        "project-tool-property"
+                      ]
+                    }
+                  ]
+                }
+              },
+              "additionalProperties": false
+            },
+            "notifications": {
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "require": {
+              "type": [
+                "array",
+                "null"
+              ],
+              "items": {
+                "type": "object",
+                "properties": {
+                  "params": {
+                    "$ref": "#/$defs/Map(String,String)-nullable"
+                  },
+                  "type": {
+                    "anyOf": [
+                      {
+                        "type": "null"
+                      },
+                      {
+                        "type": "string",
+                        "enum": [
+                          "organization-has-tool",
+                          "project-has-tool",
+                          "project-has-room",
+                          "user-has-room"
+                        ]
+                      }
+                    ]
+                  }
+                },
+                "additionalProperties": false
+              }
+            },
+            "selected": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "tag": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "type": "object",
+      "properties": {
+        "assets": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "modeSelectorOrganizationValue": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "modeSelectorProjectHint": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "additionalProperties": false
+        },
+        "contexts": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "mainMenu": {
+                "$ref": "#/$defs/MenuConfig-nullable"
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "menus": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "footerMenu": {
+              "$ref": "#/$defs/MenuConfig-nullable"
+            },
+            "functionalMenu": {
+              "$ref": "#/$defs/MenuConfig-nullable"
+            },
+            "modeSelectorMenu": {
+              "$ref": "#/$defs/MenuConfig-nullable"
+            }
+          },
+          "additionalProperties": false
+        },
+        "params": {
+          "$ref": "#/$defs/Map(String,Object)-nullable"
+        }
+      },
+      "additionalProperties": false
+    }') on conflict do nothing ;
+
+    DO $$
+        BEGIN
+            IF NOT EXISTS (
+                SELECT 1
+                FROM ssd_menu_svc.context_config
+                WHERE schema_version = '1.0'
+            ) THEN
+                INSERT INTO ssd_menu_svc.context_config(content, schema_version)
+                VALUES ('{
+                  "params": {
+                    "maxOrganizationCount": 5,
+                    "maxProjectCount": 3
+                  },
+                  "assets": {
+                    "modeSelectorOrganizationValue": "Главный раздел",
+                    "modeSelectorProjectHint": "Проект"
+                  },
+                  "menus": {
+                    "modeSelectorMenu": {
+                      "groups": [
+                        {
+                          "key": "recent_projects",
+                          "label": "Недавние проекты",
+                          "children": [
+                            {
+                              "key": "all_projects",
+                              "label": "Показать все проекты",
+                              "link": {
+                                "type": "template",
+                                "params": {
+                                  #"template": "${ssd-ui-url}/#/organization/${organization-key}"
+                                  "template": "${ssd-ui-url}/organization/${organization-key}"
+                                }
+                              },
+                              "as": {
+                                "component": "Link"
+                              }
+                            }
+                          ]
+                        },
+                        {
+                          "key": "main",
+                          "label": "Главный раздел",
+                          "children": []
+                        }
+                      ]
+                    },
+                    "footerMenu": {
+                      "items": []
+                    },
+                    "functionalMenu": {
+                      "groups": [
+                        {
+                          "key": "organizations",
+                          "label": "Мои организации",
+                          "children": [
+                            {
+                              "key": "all_organizations",
+                              "label": "Показать все организации",
+                              "link": {
+                                "type": "template",
+                                "params": {
+                                  #"template": "${ssd-ui-url}/#/organization"
+                                  "template": "${ssd-ui-url}/organization"
+                                }
+                              },
+                              "as": {
+                                "component": "Link"
+                              }
+                            }
+                          ]
+                        },
+                        {
+                          "key": "main",
+                          "children": [
+                            {
+                              "key": "user_profile",
+                              "icon": "user-profile",
+                              "label": "Мой профиль",
+                              "link": {
+                                "type": "template",
+                                "params": {
+                                  #"template": "${ssd-ui-url}/#/organization/${organization-key}/users/${user-id}/profile"
+                                  "template": "${ssd-ui-url}/organization/${organization-key}/users/${user-id}/profile"
+                                }
+                              }
+                            },
+                            {
+                              "key": "user_room",
+                              "icon": "user-room",
+                              "label": "Моя переговорная",
+                              "link": {
+                                "type": "template",
+                                "params": {
+                                  #"template": "${ssd-ui-url}/#/organization/${organization-key}/users/${user-id}/room"
+                                  "template": "${ssd-ui-url}/organization/${organization-key}/users/${user-id}/room"
+                                }
+                              },
+                              "require": [
+                                {
+                                  "type": "user-has-room"
+                                }
+                              ]
+                            },
+                            {
+                              "key": "user_manual",
+                              "icon": "user-manual",
+                              "label": "Помощь",
+                              "link": {
+                                "type": "template",
+                                "params": {
+                                  #"template": "${ssd-ui-url}/#/organization/${organization-key}/help"
+                                  "template": "${ssd-ui-url}/organization/${organization-key}/help"
+                                }
+                              }
+                            },
+                            {
+                              "key": "server_time",
+                              "label": "Время сервера:",
+                              "as": {
+                                "component": "ServerTime"
+                              }
+                            }
+                          ]
+                        },
+                        {
+                          "key": "footer",
+                          "children": [
+                            {
+                              "key": "logout",
+                              "icon": "logout",
+                              "label": "Выйти",
+                              "action": "logout"
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  },
+                  "contexts": {
+                    "organization": {
+                      "mainMenu": {
+                        "items": [
+                          {
+                            "key": "projects",
+                            "icon": "projects",
+                            "label": "Проекты",
+                            "link": {
+                              "type": "template",
+                              "params": {
+                                #"template": "${ssd-ui-url}/#/organization/${organization-key}"
+                                "template": "${ssd-ui-url}/organization/${organization-key}"
+                              }
+                            }
+                          },
+                          {
+                            "key": "users",
+                            "icon": "users",
+                            "label": "Пользователи",
+                            "link": {
+                              "type": "template",
+                              "params": {
+                                #"template": "${ssd-ui-url}/#/organization/${organization-key}/users"
+                                "template": "${ssd-ui-url}/organization/${organization-key}/users"
+                              }
+                            }
+                          },
+                          {
+                            "key": "roles",
+                            "icon": "roles",
+                            "label": "Роли",
+                            "link": {
+                              "type": "template",
+                              "params": {
+                                #"template": "${ssd-ui-url}/#/organization/${organization-key}/roles"
+                                "template": "${ssd-ui-url}/organization/${organization-key}/roles"
+                              }
+                            }
+                          },
+                          {
+                            "key": "billing_and_limits",
+                            "icon": "billing-and-limits",
+                            "label": "Биллинг и лимиты",
+                            "link": {
+                              "type": "template",
+                              "params": {
+                                #"template": "${ssd-ui-url}/#/organization/${organization-key}/billing"
+                                "template": "${ssd-ui-url}/organization/${organization-key}/billing"
+                              }
+                            }
+                          }
+                        ]
+                      }
+                    },
+                    "project": {
+                      "mainMenu": {
+                        "groups": [
+                          {
+                            "key": "primary",
+                            "children": [
+                              {
+                                "key": "dashboard",
+                                "icon": "dashboard",
+                                "label": "Дашборд",
+                                "link": {
+                                  "type": "template",
+                                  "params": {
+                                    #"template": "${ssd-ui-url}/#/organization/${organization-key}/project/${project-key}"
+                                    "template": "${ssd-ui-url}/organization/${organization-key}/project/${project-key}"
+                                  }
+                                }
+                              },
+                              {
+                                "key": "task_tracker",
+                                "icon": "task-tracker",
+                                "label": "TaskTracker",
+                                "link": {
+                                  "type": "project-tool-property",
+                                  "params": {
+                                    "toolKey": "track",
+                                    "propertyKey": "endpoint"
+                                  }
+                                },
+                                "require": [
+                                  {
+                                    "type": "project-has-tool",
+                                    "params": {
+                                      "toolKey": "track"
+                                    }
+                                  }
+                                ],
+                                "as": {
+                                  "component": "ToolMenuLink"
+                                }
+                              },
+                              {
+                                "key": "architect",
+                                "icon": "architect",
+                                "label": "PV Architect",
+                                "link": {
+                                  "type": "project-tool-property",
+                                  "params": {
+                                    "toolKey": "arch",
+                                    "propertyKey": "endpoint"
+                                  }
+                                },
+                                "require": [
+                                  {
+                                    "type": "project-has-tool",
+                                    "params": {
+                                      "toolKey": "arch"
+                                    }
+                                  }
+                                ],
+                                "as": {
+                                  "component": "ToolMenuLink"
+                                }
+                              },
+                              {
+                                "key": "source_control",
+                                "icon": "source-control",
+                                "label": "SourceControl",
+                                "link": {
+                                  "type": "project-tool-property",
+                                  "params": {
+                                    "toolKey": "sc",
+                                    "propertyKey": "endpoint"
+                                  }
+                                },
+                                "require": [
+                                  {
+                                    "type": "project-has-tool",
+                                    "params": {
+                                      "toolKey": "sc"
+                                    }
+                                  }
+                                ],
+                                "as": {
+                                  "component": "ToolMenuLink"
+                                }
+                              },
+                              {
+                                "key": "dependencies",
+                                "icon": "artifactory",
+                                "label": "Artifactory",
+                                "children": [
+                                  {
+                                    "key": "dependencies_ci",
+                                    "label": "Сборка",
+                                    "link": {
+                                      "type": "project-tool-property",
+                                      "params": {
+                                        "toolKey": "nci",
+                                        "propertyKey": "endpoint"
+                                      }
+                                    },
+                                    "require": [
+                                      {
+                                        "type": "project-has-tool",
+                                        "params": {
+                                          "toolKey": "nci"
+                                        }
+                                      }
+                                    ],
+                                    "as": {
+                                      "component": "ToolMenuLink"
+                                    }
+                                  },
+                                  {
+                                    "key": "deployment",
+                                    "label": "Развертывание",
+                                    "link": {
+                                      "type": "project-tool-property",
+                                      "params": {
+                                        "toolKey": "ncd",
+                                        "propertyKey": "endpoint"
+                                      }
+                                    },
+                                    "require": [
+                                      {
+                                        "type": "project-has-tool",
+                                        "params": {
+                                          "toolKey": "ncd"
+                                        }
+                                      }
+                                    ],
+                                    "as": {
+                                      "component": "ToolMenuLink"
+                                    }
+                                  }
+                                ]
+                              },
+                              {
+                                "key": "pipeliner",
+                                "icon": "pipeliner",
+                                "label": "Pipeliner",
+                                "children": [
+                                  {
+                                    "key": "continuousIntegration__Сборка",
+                                    "label": "Сборка",
+                                    "link": {
+                                      "type": "project-tool-property",
+                                      "params": {
+                                        "toolKey": "jci",
+                                        "propertyKey": "endpoint"
+                                      }
+                                    },
+                                    "require": [
+                                      {
+                                        "type": "project-has-tool",
+                                        "params": {
+                                          "toolKey": "jci"
+                                        }
+                                      }
+                                    ],
+                                    "as": {
+                                      "component": "ToolMenuLink"
+                                    }
+                                  },
+                                  {
+                                    "key": "continuousIntegration__Развертывание",
+                                    "label": "Развертывание",
+                                    "link": {
+                                      "type": "project-tool-property",
+                                      "params": {
+                                        "toolKey": "jcd",
+                                        "propertyKey": "endpoint"
+                                      }
+                                    },
+                                    "require": [
+                                      {
+                                        "type": "project-has-tool",
+                                        "params": {
+                                          "toolKey": "jcd"
+                                        }
+                                      }
+                                    ],
+                                    "as": {
+                                      "component": "ToolMenuLink"
+                                    }
+                                  }
+                                ]
+                              },
+                              {
+                                "key": "continuousIntegration__Поставка",
+                                "icon": "orchestra",
+                                "label": "Orchestra R",
+                                "link": {
+                                  "type": "project-tool-property",
+                                  "params": {
+                                    "toolKey": "dpm",
+                                    "propertyKey": "endpoint"
+                                  }
+                                },
+                                "require": [
+                                  {
+                                    "type": "project-has-tool",
+                                    "params": {
+                                      "toolKey": "dpm"
+                                    }
+                                  }
+                                ],
+                                "as": {
+                                  "component": "ToolMenuLink"
+                                }
+                              },
+                              {
+                                "key": "staticAnalysis",
+                                "icon": "code-scanner",
+                                "label": "CodeScanner",
+                                "link": {
+                                  "type": "project-tool-property",
+                                  "params": {
+                                    "toolKey": "snr",
+                                    "propertyKey": "endpoint"
+                                  }
+                                },
+                                "require": [
+                                  {
+                                    "type": "project-has-tool",
+                                    "params": {
+                                      "toolKey": "snr"
+                                    }
+                                  }
+                                ],
+                                "as": {
+                                  "component": "ToolMenuLink"
+                                }
+                              },
+                              {
+                                "key": "apiTesting__mock",
+                                "icon": "api-mock",
+                                "label": "API Mock & Contract Test",
+                                "link": {
+                                  "type": "project-tool-property",
+                                  "params": {
+                                    "toolKey": "mock",
+                                    "propertyKey": "endpoint"
+                                  }
+                                },
+                                "require": [
+                                  {
+                                    "type": "project-has-tool",
+                                    "params": {
+                                      "toolKey": "mock"
+                                    }
+                                  }
+                                ],
+                                "as": {
+                                  "component": "ToolMenuLink"
+                                }
+                              },
+                              {
+                                "key": "apiTesting__pact",
+                                "icon": "pact-work",
+                                "label": "PactWork",
+                                "link": {
+                                  "type": "project-tool-property",
+                                  "params": {
+                                    "toolKey": "pact",
+                                    "propertyKey": "endpoint"
+                                  }
+                                },
+                                "require": [
+                                  {
+                                    "type": "project-has-tool",
+                                    "params": {
+                                      "toolKey": "pact"
+                                    }
+                                  }
+                                ],
+                                "as": {
+                                  "component": "ToolMenuLink"
+                                }
+                              },
+                              {
+                                "key": "testData",
+                                "icon": "data-test-manager",
+                                "label": "Data Test Manager",
+                                "link": {
+                                  "type": "project-tool-property",
+                                  "params": {
+                                    "toolKey": "snt",
+                                    "propertyKey": "endpoint"
+                                  }
+                                },
+                                "require": [
+                                  {
+                                    "type": "project-has-tool",
+                                    "params": {
+                                      "toolKey": "snt"
+                                    }
+                                  }
+                                ],
+                                "as": {
+                                  "component": "ToolMenuLink"
+                                }
+                              },
+                              {
+                                "key": "processMetrics",
+                                "icon": "process-monitoring",
+                                "label": "Process Monitoring",
+                                "link": {
+                                  "type": "project-tool-property",
+                                  "params": {
+                                    "toolKey": "view",
+                                    "propertyKey": "endpoint"
+                                  }
+                                },
+                                "require": [
+                                  {
+                                    "type": "project-has-tool",
+                                    "params": {
+                                      "toolKey": "view"
+                                    }
+                                  }
+                                ],
+                                "as": {
+                                  "component": "ToolMenuLink"
+                                }
+                              },
+                              {
+                                "key": "dependencyTrack",
+                                "icon": "liblic",
+                                "label": "Liblic",
+                                "link": {
+                                  "type": "project-tool-property",
+                                  "params": {
+                                    "toolKey": "dpt",
+                                    "propertyKey": "endpoint"
+                                  }
+                                },
+                                "require": [
+                                  {
+                                    "type": "project-has-tool",
+                                    "params": {
+                                      "toolKey": "dpt"
+                                    }
+                                  }
+                                ],
+                                "as": {
+                                  "component": "ToolMenuLink"
+                                }
+                              }
+                            ]
+                          },
+                          {
+                            "key": "secondary",
+                            "children": [
+                              {
+                                "key": "project_users",
+                                "icon": "users",
+                                "label": "Пользователи",
+                                "link": {
+                                  "type": "template",
+                                  "params": {
+                                    #"template": "${ssd-ui-url}/#/organization/${organization-key}/project/${project-key}/settings"
+                                    "template": "${ssd-ui-url}/organization/${organization-key}/project/${project-key}/settings"
+                                  }
+                                }
+                              },
+                              {
+                                "key": "project_room",
+                                "icon": "project-room",
+                                "label": "Переговорная проекта",
+                                "link": {
+                                  "type": "template",
+                                  "params": {
+                                    #"template": "${ssd-ui-url}/#/organization/${organization-key}/project/${project-key}/room"
+                                    "template": "${ssd-ui-url}/organization/${organization-key}/project/${project-key}/room"
+                                  }
+                                },
+                                "require": [
+                                  {
+                                    "type": "project-has-room"
+                                  }
+                                ]
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    }
+                  }
+                }', '1.0');
+            END IF;
+        END
+    $$;
+
+  lb-ssd-side-menu-svc-db-11.sql: |
+    #INSERT INTO ssd_menu_svc.property(key, value) VALUES ('app.logout.url', 'https://dev.pd10.pvw.sbt/ssd/logout')
+    INSERT INTO ssd_menu_svc.property(key, value) VALUES ('app.logout.url', 'https://proxy.voda.ru/ssd/logout')
+    on conflict do nothing;
+
+  lb-ssd-side-menu-svc-db-12.sql: |
+    INSERT INTO ssd_menu_svc.asset(type, key, value) values
+    ('icon','projects','data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAiIGhlaWdodD0iMjAiIHZpZXdCb3g9IjAgMCAyMCAyMCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZGVmcz48Y2xpcFBhdGggaWQ9ImEiPjxwYXRoIGZpbGw9IiNmZmYiIGZpbGwtb3BhY2l0eT0iMCIgZD0iTTAgMGgyMHYyMEgweiIvPjwvY2xpcFBhdGg+PC9kZWZzPjxnIGNsaXAtcGF0aD0idXJsKCNhKSIgc3Ryb2tlPSIjMTU0OUFCIiBzdHJva2Utd2lkdGg9IjEuNiIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCI+PHBhdGggZD0ibTEuNjYgMTEuMjUgNC4xNy0yLjUgNC4xNiAyLjV2NC41OGwtNC4xNiAyLjV2LTQuNTh6Ii8+PHBhdGggZD0iTTEuNjYgMTEuMjV2NC41OGw0LjE3IDIuNW0wLTQuNTVMMTAgMTEuMjYiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIvPjxwYXRoIGQ9Im0xMCAxMS4yNSA0LjE2LTIuNSA0LjE3IDIuNXY0LjU4bC00LjE3IDIuNXYtNC41OHoiLz48cGF0aCBkPSJtMTAgMTUuODMgNC4xNiAyLjVtMC00LjU4IDQuMTctMi41bS04LjMzIDBWNi42NmwtNC4xNy0yLjVMMTAgMS42Nmw0LjE2IDIuNXY0LjU5TTUuODMgNC4xOXY0LjU0TTEwIDYuNjZsNC4xNi0yLjUiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIvPjwvZz48L3N2Zz4='),
+    ('icon','boards','data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAiIGhlaWdodD0iMjAiIHZpZXdCb3g9IjAgMCAyMCAyMCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZGVmcz48Y2xpcFBhdGggaWQ9ImEiPjxwYXRoIGZpbGw9IiNmZmYiIGZpbGwtb3BhY2l0eT0iMCIgZD0iTTAgMGgyMHYyMEgweiIvPjwvY2xpcFBhdGg+PC9kZWZzPjxnIGNsaXAtcGF0aD0idXJsKCNhKSIgZmlsbD0iIzE1NDlBQiIgZmlsbC1ydWxlPSJldmVub2RkIj48cGF0aCBkPSJNMTAuMjcgNC44MSA0Ljk3IDdsNS4zIDIuMThMMTUuMTYgN3pNOS43NiAzLjRjLjM0LS4xNC43My0uMTMgMS4wNy4wMmw1LjU2IDIuNDhjLjQ0LjIuNzMuNjIuNzMgMS4xcy0uMjkuODktLjczIDEuMDlsLTUuNTYgMi40OGMtLjM0LjE2LS43My4xNi0xLjA3LjAyTDMuNzIgOC4xYy0uNDYtLjE5LS43Ny0uNjEtLjc3LTEuMSAwLS41LjMxLS45Mi43Ny0xLjExeiIvPjxwYXRoIGQ9Ik0yLjgxIDkuNjhjLjE4LS4zNy42Mi0uNTQgMS0uMzdsNi4wOCAyLjgxcS4xMDUuMDQ1LjIxIDBsNi4wOC0yLjgxYy4zOC0uMTcuODIgMCAxIC4zNy4xNy4zOC4wMS44Mi0uMzcgMWwtNi4wOCAyLjhjLS40Ny4yMi0xIC4yMi0xLjQ3IDBsLTYuMDgtMi44YS43NTcuNzU3IDAgMCAxLS4zNy0xIi8+PHBhdGggZD0iTTIuODEgMTIuNjhjLjE4LS4zNy42Mi0uNTQgMS0uMzdsNi4wOCAyLjgxcS4xMDUuMDQ1LjIxIDBsNi4wOC0yLjgxYy4zOC0uMTcuODIgMCAxIC4zNy4xNy4zOC4wMS44Mi0uMzcgMWwtNi4wOCAyLjhjLS40Ny4yMi0xIC4yMi0xLjQ3IDBsLTYuMDgtMi44YS43NTcuNzU3IDAgMCAxLS4zNy0xIi8+PC9nPjwvc3ZnPg=='),
+    ('icon','settings','data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAuMjQ1IiBoZWlnaHQ9IjIwLjI0NCIgdmlld0JveD0iMCAwIDIwLjI0NSAyMC4yNDQiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGRlZnM+PGNsaXBQYXRoIGlkPSJhIj48cGF0aCBmaWxsPSIjZmZmIiBmaWxsLW9wYWNpdHk9IjAiIGQ9Im0uMjQ2IDAgMTkuOTk5LjI0Ni0uMjQ3IDE5Ljk5OUwwIDE5Ljk5OHoiLz48L2NsaXBQYXRoPjwvZGVmcz48cGF0aCBkPSJtLjI0NiAwIDE5Ljk5OS4yNDYtLjI0NyAxOS45OTlMMCAxOS45OTh6Ii8+PG1hc2sgaWQ9ImIiIG1hc2stdHlwZT0iYWxwaGEiIG1hc2tVbml0cz0idXNlclNwYWNlT25Vc2UiIHg9IjAiIHk9IjAiIHdpZHRoPSIyMCIgaGVpZ2h0PSIyMCI+PGcgY2xpcC1wYXRoPSJ1cmwoI2EpIj48cGF0aCBkPSJNMTcuNjcgOC4zOWMuMTQuNTkuMiAxLjIuMiAxLjgyLS4wMS42My0uMDkgMS4yNC0uMjQgMS44Mi0uMDUuMjEtLjIuMzktLjM5LjQ4LS4yLjEtLjQyLjExLS42My4wM2ExLjI0NyAxLjI0NyAwIDAgMC0xLjI2IDIuMTJjLjE3LjE0LjI3LjM0LjI4LjU2cy0uMDguNDMtLjI0LjU4Yy0uODkuODItMS45NyAxLjQ0LTMuMTcgMS43OGEuNzU1Ljc1NSAwIDAgMS0uOTUtLjYzIDEuMjQgMS4yNCAwIDAgMC0xLjIyLTEuMDhjLS42My0uMDEtMS4xNi40NS0xLjI1IDEuMDVhLjc0Ljc0IDAgMCAxLS4zNS41MmMtLjE4LjEyLS40MS4xNS0uNjIuMDhhNy42IDcuNiAwIDAgMS0zLjEyLTEuODYuNzQuNzQgMCAwIDEtLjIzLS41OGMuMDEtLjIxLjEyLS40Mi4yOS0uNTUuNDktLjM3LjY0LTEuMDUuMzMtMS42cy0uOTctLjc4LTEuNTQtLjU1YS43NS43NSAwIDAgMS0xLS41NCA3Ljc1IDcuNzUgMCAwIDEgLjA1LTMuNjNjLjA1LS4yMi4xOS0uMzkuMzktLjQ5LjE5LS4xLjQyLS4xMS42Mi0uMDIuNTYuMjMgMS4yMy4wMiAxLjU1LS41MnMuMTktMS4yMy0uMjktMS42MWEuNzUuNzUgMCAwIDEtLjI3LS41Ni43NC43NCAwIDAgMSAuMjMtLjU3Yy44OS0uODMgMS45OC0xLjQ1IDMuMTgtMS43OC4yMS0uMDcuNDMtLjAzLjYxLjA5LjE5LjEyLjMxLjMxLjMzLjUzLjA4LjYxLjYgMS4wOCAxLjIzIDEuMDkuNjMgMCAxLjE2LS40NiAxLjI1LTEuMDZhLjc0OC43NDggMCAwIDEgLjk2LS42YzEuMTkuMzcgMi4yNiAxLjAxIDMuMTMgMS44Ni4xNS4xNS4yNC4zNi4yMi41OC0uMDEuMjItLjEyLjQyLS4yOS41NS0uNDkuMzctLjY0IDEuMDUtLjMzIDEuNnMuOTcuNzggMS41NC41NmMuMjEtLjA4LjQzLS4wNy42My4wNC4xOS4xLjMzLjI4LjM3LjQ5bS0xLjM0IDEuMDVjLTEgLjA0LTEuOTgtLjQ3LTIuNTEtMS40LS41Mi0uOTQtLjQ0LTIuMDQuMTEtMi44Ny0uMzktLjMxLS44My0uNTctMS4yOS0uNzdhMi43NyAyLjc3IDAgMCAxLTIuNDcgMS40NyAyLjc2IDIuNzYgMCAwIDEtMi40My0xLjU0Yy0uNDcuMi0uOTEuNDUtMS4zMi43NC41NC44NS41OSAxLjk2LjA0IDIuODgtLjU0LjkyLTEuNTQgMS40LTIuNTQgMS4zNC0uMDMuMjQtLjA1LjQ5LS4wNS43NS0uMDEuMjUuMDEuNTEuMDMuNzUgMS0uMDQgMS45OS40NyAyLjUxIDEuNDEuNTIuOTMuNDUgMi4wMy0uMTEgMi44Ny40LjMuODMuNTYgMS4zLjc3LjQ2LS44OSAxLjQtMS40OSAyLjQ3LTEuNDcgMS4wNi4wMSAxLjk4LjYzIDIuNDMgMS41My40Ny0uMi45MS0uNDQgMS4zMS0uNzQtLjUzLS44NS0uNTgtMS45NS0uMDQtMi44Ny41NS0uOTIgMS41NC0xLjQxIDIuNTQtMS4zNC4wNC0uMjUuMDUtLjUuMDYtLjc2IDAtLjI1LS4wMS0uNS0uMDQtLjc1bS00LjQ2LjdjLjAxLS45Ny0uNzYtMS43Ni0xLjczLTEuNzctLjk3LS4wMi0xLjc2Ljc2LTEuNzcgMS43Mi0uMDEuOTcuNzYgMS43NiAxLjczIDEuNzguOTYuMDEgMS43Ni0uNzcgMS43Ny0xLjczbS0xLjcxLTMuMjdhMy4yNSAzLjI1IDAgMCAxIDMuMjEgMy4yOSAzLjI1NyAzLjI1NyAwIDAgMS0zLjI5IDMuMjFjLTEuOC0uMDMtMy4yMy0xLjUtMy4yMS0zLjI5LjAyLTEuOCAxLjQ5LTMuMjQgMy4yOS0zLjIxIiBmaWxsPSIjMDYwQTBDIiBmaWxsLW9wYWNpdHk9Ii45NTciIGZpbGwtcnVsZT0iZXZlbm9kZCIvPjwvZz48L21hc2s+PGcgbWFzaz0idXJsKCNiKSI+PHBhdGggZmlsbD0iIzE1NDlBQiIgZD0ibS4yNDYgMCAxOS45OTguMjQ2LS4yNDYgMTkuOTk5TDAgMTkuOTk4eiIvPjwvZz48L3N2Zz4='),
+    ('logo','default-logo','data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAxIiBoZWlnaHQ9IjIyIiB2aWV3Qm94PSIwIDAgMTAxIDIyIiBmaWxsPSJub25lIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciPjxwYXRoIGQ9Ik02MC45IDIwLjA1aDMuMjRsLTIuNzUtNi4wM2MxLjMtMS4yNCAyLjEtMy4wMyAyLjEtNS4yNyAwLTMuODQtMi44NS03LjExLTcuODctNy4xMS00Ljg4IDAtOC4xMyAyLjk4LTguMTMgOC4zM3YxMC4wOGgzLjEydi05LjYxYzAtNC40MiAyLjM2LTUuOTUgNS4xNy01Ljk1IDIuOTkgMCA0LjYgMS44NyA0LjYgNC40NCAwIC44Ni0uMTYgMS41Ni0uNDIgMi4xNi0uOTMtMS42OS0yLjIxLTMuMDEtNC40Ny0zLjAxLTIuNTcgMC0zLjk3IDEuNjEtMy45NyAzLjc2IDAgMi42NSAyLjI4IDQuMTMgNC44NiA0LjEzLjg1IDAgMS42OC0uMTUgMi40Ni0uNDF6TTkzIDEzLjd2LTIuODJjMi4yMyAwIDQuOTIuNjQgNC45MiAzLjEgMCAyLjA4LTEuNjkgMy4yOC00LjY2IDMuMjgtMi4zMyAwLTQuNDMtLjk1LTUuNzYtMi4zNmwtMS45NyAyYzEuNjEgMS45NyA0LjQzIDMuMTggNy43NiAzLjE4IDQuNzMgMCA3LjcxLTIuMzYgNy43MS02LjE4IDAtMy43OS0zLTUuODQtOC01Ljg0djIuODJjLTIuNjggMC00LjI3LTEuMTgtNC4yNy0zLjEgMC0xLjk3IDEuNjEtMy4zMyA0LjM4LTMuMzMgMi4zOCAwIDQuMTUgMS4wNSA1LjE3IDIuMTVsMi4wOC0xLjg5Yy0xLjIzLTEuNTYtMy40Ni0zLjA3LTcuMjMtMy4wNy00Ljc0IDAtNy40OCAyLjYxLTcuNDggNi4xMiAwIDMuMjcgMi4yOCA1Ljk0IDcuMzUgNS45NE0yNS44OCA3LjVjLS40NCAxLjEyLS42NiAyLjM0LS42NiAzLjY4IDAgMS40My4yMyAyLjczLjY4IDMuODhxLjU4IDEuNDMgMS41NiAyLjUuMTguMi4zNy4zOWMuODMuNzcgMS44MyAxLjM3IDIuOTkgMS44cTEuNzguNiAzLjkxLjYgMi4xNSAwIDMuOS0uNjVjMS4xOC0uNDYgMi4xOS0xLjEgMy4wMi0xLjkxczEuNDYtMS43NyAxLjktMi44OWMuNDYtMS4xMS42OC0yLjM0LjY4LTMuNjcgMC0xLjQ0LS4yMi0yLjczLS42OC0zLjg2cS0uNi0xLjQ5LTEuNjMtMi41Ny0uMTUtLjE1LS4zLS4yOSAwLS4wMS0uMDEtLjAxLTEuMjQtMS4xOS0zLTEuODItMS43NS0uNjMtMy44OC0uNjMtMi4xOCAwLTMuOTMuNjhjLTEuMTcuNDQtMi4xNyAxLjA3LTMgMS44OC0uODIuODEtMS40NyAxLjc3LTEuOTIgMi44OU0wIDIuMzNoMy4yN2wzLjM0IDEzLjI4IDQuMDEtMTMuMjhoMy4wOWwzLjk4IDEzLjIxIDMuMjItMTMuMjFoMy4xMmwtNC4zOCAxNy43NWgtMy40OEwxMi4xMSA3LjAyIDcuOTYgMjAuMDhoLTMuNXptNzAuODggMTcuNzVoLTMuMTdWMi4zM2gzLjE3djcuNDVoMi42N2w1LjctNy40NWgzLjg1bC02Ljc3IDguNDQgNy44NiA5LjMxaC00LjA1bC02LjQ0LTcuNjloLTIuODJ6bS00MS45My02LjQ0YTcuNiA3LjYgMCAwIDEtLjM5LTIuNDRjMC0uOTMuMTQtMS43Ny40MS0yLjU0LjI5LS43NS42OS0xLjQxIDEuMjItMS45NXEuODEtLjgyNSAxLjk1LTEuMjljLjc2LS4zIDEuNjEtLjQ2IDIuNTYtLjQ2IDEuMDEgMCAxLjkuMTcgMi42Ni41MS43OC4zMiAxLjQzLjc2IDEuOTYgMS4zMi41Mi41Ni45MSAxLjIyIDEuMTYgMS45OC4yNy43Ni40MSAxLjU3LjQxIDIuNDNxMCAxLjQtLjQzIDIuNTZjLS4yOS43Ni0uNzEgMS40MS0xLjI1IDEuOTVxLS4wMi4wMy0uMDUuMDYtLjc3Ljc3LTEuODcgMS4yMWMtLjc1LjMxLTEuNTkuNDYtMi41NC40Ni0xLjAxIDAtMS45MS0uMTYtMi42OS0uNDhxLTEuMTQtLjUxLTEuOTItMS4zNWMtLjUzLS41NS0uOTItMS4yMS0xLjE5LTEuOTdtMjguOTYtLjU1Yy0uNTIuMjEtMS4wNy4yOC0xLjYxLjI4LTEuMDcgMC0yLjA1LS40OS0yLjA1LTEuNSAwLS42OC40Ni0xLjIgMS4zMi0xLjIuOTkgMCAxLjY5IDEuMDIgMi4zNCAyLjQyIiBmaWxsPSIjMTU0OUFCIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiLz48L3N2Zz4='),
+    ('icon','documents','data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAiIGhlaWdodD0iMjAiIHZpZXdCb3g9IjAgMCAyMCAyMCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZGVmcz48Y2xpcFBhdGggaWQ9ImEiPjxwYXRoIGZpbGw9IiNmZmYiIGZpbGwtb3BhY2l0eT0iMCIgZD0iTTAgMGgyMHYyMEgweiIvPjwvY2xpcFBhdGg+PC9kZWZzPjxnIGNsaXAtcGF0aD0idXJsKCNhKSIgc3Ryb2tlPSIjMTU0OUFCIiBzdHJva2Utd2lkdGg9IjEuNiIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCI+PHBhdGggZD0iTTExLjY2IDIuNXYzLjMzYzAgLjU1LjI4LjgzLjgzLjgzaDMuMzQiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIvPjxwYXRoIGQ9Ik01LjgzIDE3LjVjLS40NiAwLS44Ni0uMTctMS4xOC0uNDktLjMzLS4zMy0uNDktLjcyLS40OS0xLjE4VjQuMTZjMC0uNDYuMTYtLjg1LjQ5LTEuMTguMzItLjMyLjcyLS40OCAxLjE4LS40OGg1LjgzbDQuMTcgNC4xNnY5LjE3YzAgLjQ2LS4xNi44NS0uNDkgMS4xOC0uMzMuMzItLjcyLjQ5LTEuMTguNDl6Ii8+PHBhdGggZD0iTTcuNSA3LjVoLjgzbS0uODMgMy4zM2g1bS01IDMuMzNoNSIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIi8+PC9nPjwvc3ZnPg=='),
+    ('icon','conveyors','data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAiIGhlaWdodD0iMjAiIHZpZXdCb3g9IjAgMCAyMCAyMCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZGVmcz48Y2xpcFBhdGggaWQ9ImEiPjxwYXRoIGZpbGw9IiNmZmYiIGZpbGwtb3BhY2l0eT0iMCIgZD0iTTAgMGgyMHYyMEgweiIvPjwvY2xpcFBhdGg+PC9kZWZzPjxnIGNsaXAtcGF0aD0idXJsKCNhKSIgc3Ryb2tlLXdpZHRoPSIxLjUiIHN0cm9rZS1saW5lam9pbj0icm91bmQiPjxwYXRoIGQ9Ik0yMCAwdjIwSDBWMHoiLz48cGF0aCBkPSJNMy4wNyAxMi44N3EuNTcgMS4zOCAxLjYyIDIuNDNBNy40NyA3LjQ3IDAgMCAwIDEwIDE3LjVhNy40NiA3LjQ2IDAgMCAwIDUuMy0yLjJxMS4wNS0xLjA1IDEuNjItMi40M2MuMzktLjkyLjU4LTEuODguNTgtMi44NyAwLTEtLjE5LTEuOTYtLjU4LTIuODhhNy41IDcuNSAwIDAgMC00LjA1LTQuMDZBNy41IDcuNSAwIDAgMCAxMCAyLjQ5YTcuNDcgNy40NyAwIDAgMC02LjkzIDQuNjNBNy4xIDcuMSAwIDAgMCAyLjUgMTBjLS4wMS45OS4xOCAxLjk1LjU3IDIuODdaIiBzdHJva2U9IiMxNTQ5QUIiLz48cGF0aCBkPSJNMTEuNjYgOC4zM2MwLS40Ni0uMTYtLjg1LS40OS0xLjE4LS4zMi0uMzMtLjcxLS40OS0xLjE3LS40OXMtLjg2LjE2LTEuMTguNDljLS4zMy4zMy0uNDkuNzItLjQ5IDEuMTh2My4zM2MwIC40Ni4xNi44NS40OSAxLjE4LjMyLjMyLjcyLjQ5IDEuMTguNDlzLjg1LS4xNyAxLjE3LS40OWMuMzMtLjMzLjQ5LS43Mi40OS0xLjE4IiBzdHJva2U9IiMxNTQ5QUIiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIvPjwvZz48L3N2Zz4='),
+    ('icon','users','data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAiIGhlaWdodD0iMjAiIHZpZXdCb3g9IjAgMCAyMCAyMCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZGVmcz48Y2xpcFBhdGggaWQ9ImEiPjxwYXRoIGZpbGw9IiNmZmYiIGZpbGwtb3BhY2l0eT0iMCIgZD0iTTAgMGgyMHYyMEgweiIvPjwvY2xpcFBhdGg+PC9kZWZzPjxnIGNsaXAtcGF0aD0idXJsKCNhKSIgZmlsbD0iIzE1NDlBQiIgZmlsbC1ydWxlPSJldmVub2RkIj48cGF0aCBkPSJNMS4yNSAxNS43NUMxLjI1IDEzLjY3IDIuOTIgMTIgNSAxMmgzYzIuMDcgMCAzLjc1IDEuNjcgMy43NSAzLjc1IDAgLjk2LS43OSAxLjc1LTEuNzUgMS43NUgzYy0uOTcgMC0xLjc1LS43OS0xLjc1LTEuNzVNNSAxMy41Yy0xLjI1IDAtMi4yNSAxLTIuMjUgMi4yNSAwIC4xMy4xMS4yNS4yNS4yNWg3Yy4xMyAwIC4yNS0uMTIuMjUtLjI1IDAtMS4yNS0xLjAxLTIuMjUtMi4yNS0yLjI1em0tMS4yNS03YzAtMS41MiAxLjIzLTIuNzUgMi43NS0yLjc1IDEuNTEgMCAyLjc1IDEuMjMgMi43NSAyLjc1djFjMCAxLjUxLTEuMjQgMi43NS0yLjc1IDIuNzUtMS41MiAwLTIuNzUtMS4yNC0yLjc1LTIuNzV6TTYuNSA1LjI1Yy0uNyAwLTEuMjUuNTYtMS4yNSAxLjI1djFjMCAuNjguNTUgMS4yNSAxLjI1IDEuMjUuNjkgMCAxLjI1LS41NyAxLjI1LTEuMjV2LTFjMC0uNjktLjU2LTEuMjUtMS4yNS0xLjI1bTQuMjUgNS41YzAtLjQyLjMzLS43NS43NS0uNzVIMTVjMi4wNyAwIDMuNzUgMS42NyAzLjc1IDMuNzUgMCAuOTYtLjc5IDEuNzUtMS43NSAxLjc1aC0zLjVjLS40MiAwLS43NS0uMzQtLjc1LS43NSAwLS40Mi4zMy0uNzUuNzUtLjc1SDE3Yy4xMyAwIC4yNS0uMTIuMjUtLjI1IDAtMS4yNS0xLjAxLTIuMjUtMi4yNS0yLjI1aC0zLjVjLS40MiAwLS43NS0uMzQtLjc1LS43NW0wLTYuMjVjMC0xLjUyIDEuMjMtMi43NSAyLjc1LTIuNzUgMS41MSAwIDIuNzUgMS4yMyAyLjc1IDIuNzV2MWMwIDEuNTEtMS4yNCAyLjc1LTIuNzUgMi43NS0xLjUyIDAtMi43NS0xLjI0LTIuNzUtMi43NXptMi43NS0xLjI1Yy0uNyAwLTEuMjUuNTYtMS4yNSAxLjI1djFjMCAuNjguNTUgMS4yNSAxLjI1IDEuMjUuNjkgMCAxLjI1LS41NyAxLjI1LTEuMjV2LTFjMC0uNjktLjU2LTEuMjUtMS4yNS0xLjI1Ii8+PC9nPjwvc3ZnPg=='),
+    ('icon','messages','data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAiIGhlaWdodD0iMjAiIHZpZXdCb3g9IjAgMCAyMCAyMCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZGVmcz48Y2xpcFBhdGggaWQ9ImEiPjxwYXRoIGZpbGw9IiNmZmYiIGZpbGwtb3BhY2l0eT0iMCIgZD0iTTAgMGgyMHYyMEgweiIvPjwvY2xpcFBhdGg+PC9kZWZzPjxwYXRoIGQ9Ik0wIDBoMjB2MjBIMHoiLz48bWFzayBpZD0iYiIgbWFzay10eXBlPSJhbHBoYSIgbWFza1VuaXRzPSJ1c2VyU3BhY2VPblVzZSIgeD0iMCIgeT0iMCIgd2lkdGg9IjIwIiBoZWlnaHQ9IjIwIj48ZyBjbGlwLXBhdGg9InVybCgjYSkiPjxwYXRoIGQ9Ik0xMCAzLjc1QTYuMjQgNi4yNCAwIDAgMCAzLjc1IDEwYzAgMy40NSAyLjc5IDYuMjUgNi4yNSA2LjI1IDEuMjcgMCAyLjQ1LS4zOSAzLjQ0LTEuMDRsLjI4LS4xOCAxLjc0LjQzLS40My0xLjc0LjE4LS4yOGMuNjUtLjk5IDEuMDQtMi4xNyAxLjA0LTMuNDQgMC0zLjQ2LTIuOC02LjI1LTYuMjUtNi4yNU0yLjI1IDEwYzAtNC4yOCAzLjQ2LTcuNzUgNy43NS03Ljc1QTcuNzUgNy43NSAwIDAgMSAxNy43NSAxMGMwIDEuNDUtLjQxIDIuODItMS4xMSAzLjk5bC44OSAzLjU0LTMuNTUtLjg5Yy0xLjE2LjctMi41MyAxLjExLTMuOTggMS4xMUE3Ljc1IDcuNzUgMCAwIDEgMi4yNSAxMCIgZmlsbD0iIzA2MEEwQyIgZmlsbC1vcGFjaXR5PSIuOTU3IiBmaWxsLXJ1bGU9ImV2ZW5vZGQiLz48L2c+PC9tYXNrPjxnIG1hc2s9InVybCgjYikiPjxwYXRoIGZpbGw9IiMxNTQ5QUIiIGQ9Ik0wIDBoMjB2MjBIMHoiLz48L2c+PC9zdmc+'),
+    ('icon','test-culture','data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAiIGhlaWdodD0iMjAiIHZpZXdCb3g9IjAgMCAyMCAyMCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZGVmcz48Y2xpcFBhdGggaWQ9ImEiPjxwYXRoIGZpbGw9IiNmZmYiIGZpbGwtb3BhY2l0eT0iMCIgZD0iTTAgMGgyMHYyMEgweiIvPjwvY2xpcFBhdGg+PC9kZWZzPjxnIGNsaXAtcGF0aD0idXJsKCNhKSIgc3Ryb2tlPSIjMTU0OUFCIiBzdHJva2Utd2lkdGg9IjEuNiIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCI+PHBhdGggZD0ibTguMjUgMTYuODItNS43Ny01LjQ2Yy0uOC0uNzUtMS4wNi0yLjE5LS41OC0zLjE5bDItNC4xOGMuMzktLjgzIDEuNDQtMS40OSAyLjMyLTEuNDloNy41NWMuODggMCAxLjkyLjY2IDIuMzIgMS40OWwyIDQuMThjLjQ4IDEgLjIxIDIuNDQtLjU4IDMuMTktMi44OCAyLjc0LTIuODkgMi43My01Ljc4IDUuNDYtLjk2LjktMi41Mi45LTMuNDggMFoiLz48cGF0aCBkPSJNMTAgNi42NnY1Ljg0TTYuNjYgNi42Nmg2LjY3IiBzdHJva2UtbGluZWNhcD0icm91bmQiLz48L2c+PC9zdmc+'),
+    ('icon','wiki','data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAiIGhlaWdodD0iMjAiIHZpZXdCb3g9IjAgMCAyMCAyMCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZGVmcz48Y2xpcFBhdGggaWQ9ImEiPjxwYXRoIGZpbGw9IiNmZmYiIGZpbGwtb3BhY2l0eT0iMCIgZD0iTTAgMGgyMHYyMEgweiIvPjwvY2xpcFBhdGg+PC9kZWZzPjxnIGNsaXAtcGF0aD0idXJsKCNhKSIgc3Ryb2tlPSIjMTU0OUFCIiBzdHJva2Utd2lkdGg9IjEuNiIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCI+PHBhdGggZD0iTTExLjY2IDIuNXYzLjMzYzAgLjU1LjI4LjgzLjgzLjgzaDMuMzQiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIvPjxwYXRoIGQ9Ik01LjgzIDE3LjVjLS40NiAwLS44Ni0uMTctMS4xOC0uNDktLjMzLS4zMy0uNDktLjcyLS40OS0xLjE4VjQuMTZjMC0uNDYuMTYtLjg1LjQ5LTEuMTguMzItLjMyLjcyLS40OCAxLjE4LS40OGg1LjgzbDQuMTcgNC4xNnY5LjE3YzAgLjQ2LS4xNi44NS0uNDkgMS4xOC0uMzMuMzItLjcyLjQ5LTEuMTguNDl6Ii8+PHBhdGggZD0iTTcuNSA3LjVoLjgzbS0uODMgMy4zM2g1bS01IDMuMzNoNSIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIi8+PC9nPjwvc3ZnPg=='),
+    ('icon','source-control','data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAiIGhlaWdodD0iMjAiIHZpZXdCb3g9IjAgMCAyMCAyMCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZGVmcz48Y2xpcFBhdGggaWQ9ImEiPjxwYXRoIGZpbGw9IiNmZmYiIGZpbGwtb3BhY2l0eT0iMCIgZD0iTTAgMGgyMHYyMEgweiIvPjwvY2xpcFBhdGg+PC9kZWZzPjxnIGNsaXAtcGF0aD0idXJsKCNhKSIgZmlsbD0iIzE1NDlBQiI+PHBhdGggZD0iTTEwLjQxIDEuODdhLjc0Ljc0IDAgMCAwLS44MyAwbC03LjUgNWMtLjM1LjIzLS40NC43LS4yMSAxLjA0cy43LjQ0IDEuMDQuMjFMMTAgMy40bDcuMDggNC43MmMuMzQuMjMuODEuMTMgMS4wNC0uMjFzLjE0LS44MS0uMjEtMS4wNEwxNi40OCA2VjMuNzNjMC0uNDEtLjM0LS43NS0uNzUtLjc1cy0uNzUuMzQtLjc1Ljc1VjV6Ii8+PHBhdGggZD0iTTUgOWMwLS40Mi0uMzQtLjc1LS43NS0uNzUtLjQyIDAtLjc1LjMzLS43NS43NXY2LjI1QzMuNSAxNi43NiA0LjczIDE4IDYuMjUgMThoNy41YzEuNTEgMCAyLjc1LTEuMjQgMi43NS0yLjc1VjljMC0uNDItLjM0LS43NS0uNzUtLjc1LS40MiAwLS43NS4zMy0uNzUuNzV2Ni4yNWMwIC42OC0uNTYgMS4yNS0xLjI1IDEuMjVoLTcuNWMtLjcgMC0xLjI1LS41Ny0xLjI1LTEuMjV6Ii8+PHBhdGggZD0iTTcgMTAuNWMwLS45Ny43OC0xLjc1IDEuNzUtMS43NWgyLjVjLjk2IDAgMS43NS43OCAxLjc1IDEuNzV2MmMwIC45Ni0uNzkgMS43NS0xLjc1IDEuNzVoLTIuNWMtLjk3IDAtMS43NS0uNzktMS43NS0xLjc1em0xLjc1LS4yNWMtLjE0IDAtLjI1LjExLS4yNS4yNXYyYzAgLjEzLjExLjI1LjI1LjI1aDIuNWMuMTMgMCAuMjUtLjEyLjI1LS4yNXYtMmMwLS4xNC0uMTItLjI1LS4yNS0uMjV6IiBmaWxsLXJ1bGU9ImV2ZW5vZGQiLz48L2c+PC9zdmc+'),
+    ('icon','artifactory','data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAiIGhlaWdodD0iMjAiIHZpZXdCb3g9IjAgMCAyMCAyMCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZGVmcz48Y2xpcFBhdGggaWQ9ImEiPjxwYXRoIGZpbGw9IiNmZmYiIGZpbGwtb3BhY2l0eT0iMCIgZD0iTTAgMGgyMHYyMEgweiIvPjwvY2xpcFBhdGg+PC9kZWZzPjxnIGNsaXAtcGF0aD0idXJsKCNhKSIgc3Ryb2tlPSIjMTU0OUFCIiBzdHJva2Utd2lkdGg9IjEuNiIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCI+PHBhdGggZD0iTTE3LjUgNi44NHY2LjA3YzAgLjY4LS4zNyAxLjMtLjk3IDEuNjNsLTUuNjIgMy41NnEtLjkxNS40OTUtMS44MyAwbC01LjYyLTMuNTZjLS42NC0uMzUtLjk2LS44OS0uOTYtMS42M1Y2Ljg0YzAtLjY3LjM2LTEuMjkuOTYtMS42Mmw1LjYyLTMuMzFjLjYzLS4zNSAxLjI1LS4zNSAxLjg4IDBsNS42IDMuMzFjLjYzLjM2Ljk0LjkuOTQgMS42MloiLz48cGF0aCBkPSJNOC4zMyAxMy4zM3YtNWMwLS40Ni4xNi0uODUuNDktMS4xOC4zMi0uMzMuNzItLjQ5IDEuMTgtLjQ5cy44NS4xNiAxLjE3LjQ5Yy4zMy4zMy40OS43Mi40OSAxLjE4djVtLTMuMzMtMi41aDMuMzMiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIvPjwvZz48L3N2Zz4='),
+    ('icon','pipeliner','data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAiIGhlaWdodD0iMjAiIHZpZXdCb3g9IjAgMCAyMCAyMCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZGVmcz48Y2xpcFBhdGggaWQ9ImEiPjxwYXRoIGZpbGw9IiNmZmYiIGZpbGwtb3BhY2l0eT0iMCIgZD0iTTAgMGgyMHYyMEgweiIvPjwvY2xpcFBhdGg+PC9kZWZzPjxnIGNsaXAtcGF0aD0idXJsKCNhKSI+PHBhdGggZD0iTTEwIDEwYy40Ni0uOSAxLjA2LTEuNjkgMS44MS0yLjM2LjY1LS42NSAxLjQzLS45OCAyLjM1LS45OHMxLjcxLjMzIDIuMzYuOTguOTggMS40My45OCAyLjM2YzAgLjkxLS4zMyAxLjctLjk4IDIuMzVzLTEuNDQuOTgtMi4zNi45OC0xLjctLjMzLTIuMzUtLjk4QTguMyA4LjMgMCAwIDEgMTAgMTBhOC40IDguNCAwIDAgMC0xLjgxLTIuMzZjLS42NS0uNjUtMS40NC0uOTgtMi4zNi0uOThzLTEuNzEuMzMtMi4zNi45OFMyLjUgOS4wNyAyLjUgMTBjMCAuOTEuMzIgMS43Ljk3IDIuMzVzMS40NC45OCAyLjM2Ljk4IDEuNzEtLjMzIDIuMzYtLjk4Yy43NC0uNjggMS4zNC0xLjQ2IDEuODEtMi4zNVoiIHN0cm9rZT0iIzE1NDlBQiIgc3Ryb2tlLXdpZHRoPSIxLjYiIHN0cm9rZS1saW5lam9pbj0icm91bmQiLz48L2c+PC9zdmc+'),
+    ('icon','orchestra','data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAiIGhlaWdodD0iMjAiIHZpZXdCb3g9IjAgMCAyMCAyMCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZGVmcz48Y2xpcFBhdGggaWQ9ImEiPjxwYXRoIGZpbGw9IiNmZmYiIGZpbGwtb3BhY2l0eT0iMCIgZD0iTTAgMGgyMHYyMEgweiIvPjwvY2xpcFBhdGg+PC9kZWZzPjxnIGNsaXAtcGF0aD0idXJsKCNhKSIgc3Ryb2tlPSIjMTU0OUFCIiBzdHJva2Utd2lkdGg9IjEuNiIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIj48cGF0aCBkPSJNOS41NSAxNy4zN2MtMS4yNi0uMzktMi4zOS0xLTMuNDEtMS44NGE5Ljk3IDkuOTcgMCAwIDEtMy41OC02LjY5Yy0uMTQtMS4zLS4wMi0yLjU5LjM1LTMuODQgMi43LjEyIDUuMDYtLjcxIDcuMDktMi41IDIuMDIgMS43OSA0LjM4IDIuNjIgNy4wOCAyLjUuNTggMS45Ni41NSAzLjkyLS4wOCA1Ljg4bS00LjUgNC45NSAxLjY2IDEuNjcgMy4zNC0zLjM0Ii8+PC9nPjwvc3ZnPg=='),
+    ('icon','code-scanner','data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAiIGhlaWdodD0iMjAiIHZpZXdCb3g9IjAgMCAyMCAyMCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZGVmcz48Y2xpcFBhdGggaWQ9ImEiPjxwYXRoIGZpbGw9IiNmZmYiIGZpbGwtb3BhY2l0eT0iMCIgZD0iTTAgMGgyMHYyMEgweiIvPjwvY2xpcFBhdGg+PC9kZWZzPjxnIGNsaXAtcGF0aD0idXJsKCNhKSIgc3Ryb2tlPSIjMTU0OUFCIiBzdHJva2Utd2lkdGg9IjEuNiIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIj48cGF0aCBkPSJNMy4zMyA2LjY2VjVjMC0uNDYuMTYtLjg2LjQ5LTEuMTguMzItLjMzLjcyLS40OSAxLjE4LS40OWgxLjY2bS0zLjMzIDEwVjE1YzAgLjQ2LjE2Ljg1LjQ5IDEuMTcuMzIuMzMuNzIuNDkgMS4xOC40OWgxLjY2bTYuNjctMTMuMzNIMTVjLjQ2IDAgLjg1LjE2IDEuMTcuNDkuMzMuMzIuNDkuNzIuNDkgMS4xOHYxLjY2bS0zLjMzIDEwSDE1Yy40NiAwIC44NS0uMTYgMS4xNy0uNDkuMzMtLjMyLjQ5LS43MS40OS0xLjE3di0xLjY3TTYuNjYgMTBoNi42N002LjY2IDcuNWg1bS01IDVoMy4zMyIvPjwvZz48L3N2Zz4='),
+    ('icon','api-mock','data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAiIGhlaWdodD0iMjAiIHZpZXdCb3g9IjAgMCAyMCAyMCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZGVmcz48Y2xpcFBhdGggaWQ9ImEiPjxwYXRoIGZpbGw9IiNmZmYiIGZpbGwtb3BhY2l0eT0iMCIgZD0iTTAgMGgyMHYyMEgweiIvPjwvY2xpcFBhdGg+PC9kZWZzPjxnIGNsaXAtcGF0aD0idXJsKCNhKSIgc3Ryb2tlPSIjMTU0OUFCIiBzdHJva2Utd2lkdGg9IjEuNiIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCI+PHBhdGggZD0iTTIuNSAxMy4zM1Y4Ljc1YzAtLjU4LjItMS4wNy42MS0xLjQ4LjQtLjQxLjg5LS42MSAxLjQ3LS42MS41NyAwIDEuMDYuMiAxLjQ3LjYxcy42MS45LjYxIDEuNDh2NC41OG0wLTMuMzNIMi41Ii8+PHBhdGggZD0iTTEwIDV2MTAiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIvPjxwYXRoIGQ9Ik0xMy4zMyAxMGgyLjVjLjQ2IDAgLjg1LjE2IDEuMTguNDguMzIuMzMuNDkuNzIuNDkgMS4xOHMtLjE3Ljg1LS40OSAxLjE4Yy0uMzMuMzItLjcyLjQ5LTEuMTguNDloLTIuNVY2LjY2aDIuNWMuNDYgMCAuODUuMTYgMS4xOC40OS4zMi4zMy40OS43Mi40OSAxLjE4cy0uMTcuODUtLjQ5IDEuMThjLS4zMy4zMi0uNzIuNDktMS4xOC40OSIvPjwvZz48L3N2Zz4='),
+    ('icon','pact-work','data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAiIGhlaWdodD0iMjAiIHZpZXdCb3g9IjAgMCAyMCAyMCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZGVmcz48Y2xpcFBhdGggaWQ9ImEiPjxwYXRoIGZpbGw9IiNmZmYiIGZpbGwtb3BhY2l0eT0iMCIgZD0iTTAgMGgyMHYyMEgweiIvPjwvY2xpcFBhdGg+PC9kZWZzPjxnIGNsaXAtcGF0aD0idXJsKCNhKSIgZmlsbD0iIzE1NDlBQiIgZmlsbC1ydWxlPSJldmVub2RkIj48cGF0aCBkPSJNOS4zMiAxNi40MWEuNzQuNzQgMCAwIDEtLjY2LS44M0wxMCAzLjY2Yy4wNS0uNDEuNDItLjcxLjgzLS42Ni40Mi4wNS43MS40Mi42Ny44M2wtMS4zNSAxMS45MmMtLjA1LjQxLS40Mi43MS0uODMuNjZtMy43MS0xMC44NmMuMjktLjI5Ljc2LS4yOSAxLjA2IDBsNC4wMyA0LjAzLTQuMDMgNC4wNGMtLjMuMjktLjc3LjI5LTEuMDYgMC0uMy0uMy0uMy0uNzcgMC0xLjA3TDE2IDkuNThsLTIuOTctMi45NmMtLjMtLjMtLjMtLjc3IDAtMS4wN20tNi4wNyAwYS43NTQuNzU0IDAgMCAwLTEuMDYgMEwxLjg3IDkuNThsNC4wMyA0LjA0Yy4zLjI5Ljc3LjI5IDEuMDYgMCAuMy0uMy4zLS43NyAwLTEuMDdMNCA5LjU4bDIuOTYtMi45NmMuMy0uMy4zLS43NyAwLTEuMDciLz48L2c+PC9zdmc+'),
+    ('icon','data-test-manager','data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAiIGhlaWdodD0iMjAiIHZpZXdCb3g9IjAgMCAyMCAyMCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZGVmcz48Y2xpcFBhdGggaWQ9ImEiPjxwYXRoIGZpbGw9IiNmZmYiIGZpbGwtb3BhY2l0eT0iMCIgZD0iTTAgMGgyMHYyMEgweiIvPjwvY2xpcFBhdGg+PC9kZWZzPjxnIGNsaXAtcGF0aD0idXJsKCNhKSIgc3Ryb2tlPSIjMTU0OUFCIiBzdHJva2Utd2lkdGg9IjEuNiIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCI+PHBhdGggZD0iTTEwIDcuNWMzLjY4IDAgNi42Ni0xLjEyIDYuNjYtMi41IDAtMS4zOS0yLjk4LTIuNS02LjY2LTIuNS0zLjY5IDAtNi42NyAxLjExLTYuNjcgMi41IDAgMS4zOCAyLjk4IDIuNSA2LjY3IDIuNVoiLz48cGF0aCBkPSJNMy4zMyA1djVjMCAxLjM4IDIuOTggMi41IDYuNjcgMi41bTYuNjYtMi45MlY1Ii8+PHBhdGggZD0iTTMuMzMgMTB2NWMwIDEuMzggMi45OCAyLjUgNi42NyAyLjUiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIvPjxwYXRoIGQ9Ik0xMy4yMyAxNi43NmMuNDkuNDkgMS4wNy43NCAxLjc3Ljc0LjY5IDAgMS4yNy0uMjUgMS43Ni0uNzRzLjc0LTEuMDguNzQtMS43NmMwLS42OS0uMjUtMS4yOC0uNzQtMS43N3MtMS4wNy0uNzMtMS43Ni0uNzNjLS43IDAtMS4yOC4yNC0xLjc3Ljczcy0uNzMgMS4wOC0uNzMgMS43N2MwIC42OC4yNCAxLjI3LjczIDEuNzZaIi8+PHBhdGggZD0ibTE2LjgzIDE2LjgzIDEuNSAxLjUiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIvPjwvZz48L3N2Zz4='),
+    ('icon','process-monitoring','data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAiIGhlaWdodD0iMjAiIHZpZXdCb3g9IjAgMCAyMCAyMCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZGVmcz48Y2xpcFBhdGggaWQ9ImEiPjxwYXRoIGZpbGw9IiNmZmYiIGZpbGwtb3BhY2l0eT0iMCIgZD0iTTAgMGgyMHYyMEgweiIvPjwvY2xpcFBhdGg+PC9kZWZzPjxnIGNsaXAtcGF0aD0idXJsKCNhKSIgc3Ryb2tlPSIjMTU0OUFCIiBzdHJva2Utd2lkdGg9IjEuNiIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCI+PHBhdGggZD0iTTMuMDcgMTIuODdxLjU3IDEuMzggMS42MiAyLjQzQTcuNDcgNy40NyAwIDAgMCAxMCAxNy41YTcuNDYgNy40NiAwIDAgMCA1LjMtMi4ycTEuMDUtMS4wNSAxLjYyLTIuNDNjLjM5LS45Mi41OC0xLjg4LjU4LTIuODcgMC0xLS4xOS0xLjk2LS41OC0yLjg4YTcuNSA3LjUgMCAwIDAtNC4wNS00LjA2QTcuNSA3LjUgMCAwIDAgMTAgMi40OWE3LjQ3IDcuNDcgMCAwIDAtNi45MyA0LjYzQTcuMSA3LjEgMCAwIDAgMi41IDEwYy0uMDEuOTkuMTggMS45NS41NyAyLjg3WiIvPjxwYXRoIGQ9Ik05Ljk5IDEwLjgzYy41NiAwIC44NC0uMjguODQtLjgzcTAtLjg0LS44NC0uODRjLS41NSAwLS44My4yOC0uODMuODQgMCAuNTUuMjguODMuODMuODNaIi8+PHBhdGggZD0ibTExLjE3IDguODIgMi4xNi0yLjE2TTUuODMgMTBjMC0uNTYuMS0xLjA5LjMyLTEuNnEuMzE1LS43NjUuOS0xLjM1dDEuMzUtLjljLjUxLS4yMiAxLjA0LS4zMiAxLjYtLjMyIiBzdHJva2UtbGluZWNhcD0icm91bmQiLz48L2c+PC9zdmc+'),
+    ('icon','project-room','data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAiIGhlaWdodD0iMjAiIHZpZXdCb3g9IjAgMCAyMCAyMCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZGVmcz48Y2xpcFBhdGggaWQ9ImEiPjxwYXRoIGZpbGw9IiNmZmYiIGZpbGwtb3BhY2l0eT0iMCIgZD0iTTAgMGgyMHYyMEgweiIvPjwvY2xpcFBhdGg+PC9kZWZzPjxnIGNsaXAtcGF0aD0idXJsKCNhKSIgZmlsbD0iIzE1NDlBQiIgZmlsbC1ydWxlPSJldmVub2RkIj48cGF0aCBkPSJNMTQuNjYgOS45NmgtNS41Yy0uMzkgMC0uNzItLjA5LS45OS0uMjgtLjA3LS4wNC0uMTQtLjEtLjItLjE2cy0uMTItLjEzLS4xNy0uMnEtLjI3LS40MDUtLjI3LS45OXYtNXEwLS42LjI3LS45OWMuMDUtLjA4LjExLS4xNC4xNy0uMnMuMTMtLjEyLjItLjE3Yy4yNy0uMTguNi0uMjguOTktLjI4aDcuNWMuNSAwIC45LjE1IDEuMTkuNDUuMDYuMDYuMTIuMTIuMTcuMnEuMjcuMzkuMjcuOTl2OC4zM2MwIC4yNy0uMDYuNDctLjE5LjYtLjE0LjEzLS4zNC4yLS42LjItLjIzIDAtLjQxLS4wOC0uNTctLjIzem0uOS0xLjM3YS44LjggMCAwIDAtLjU2LS4yM0g5LjE2bC0uMDMtNS4wMyA3LjUzLS4wNC4wMyA2LjQ0eiIvPjxwYXRoIGQ9Ik0xMi40NiAxNC4xNlYxMi41YzAtLjQ1LS4zNS0uODEtLjgtLjgxcy0uOC4zNi0uOC44MXYxLjY2TDUgMTQuMTlhLjc2Ljc2IDAgMCAwLS41Ny4yNEwzLjMgMTUuNTZ2LTYuNEw1IDkuMTNjLjQ0IDAgLjgtLjM1LjgtLjhzLS4zNi0uOC0uOC0uOEgzLjMzcS0uNiAwLS45OS4yN2ExLjYgMS42IDAgMCAwLS4zNy4zN3EtLjI3LjQwNS0uMjcuOTl2OC4zNGMwIC4yMi4wNy40MS4yMy41Ni4xOS4xOS4zOC4yOC41Ny4yOC4xOCAwIC4zNy0uMDkuNTYtLjI4bDIuMjctMi4yNmg1LjVjLjM5IDAgLjcyLS4xLjk5LS4yOC4wNy0uMDUuMTQtLjExLjItLjE3LjI5LS4yOS40NC0uNjkuNDQtMS4xOSIvPjwvZz48L3N2Zz4='),
+    ('icon','user-profile','data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAiIGhlaWdodD0iMjAiIHZpZXdCb3g9IjAgMCAyMCAyMCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZGVmcz48Y2xpcFBhdGggaWQ9ImEiPjxwYXRoIGZpbGw9IiNmZmYiIGZpbGwtb3BhY2l0eT0iMCIgZD0iTTAgMGgyMHYyMEgweiIvPjwvY2xpcFBhdGg+PC9kZWZzPjxwYXRoIGQ9Ik0wIDBoMjB2MjBIMHoiLz48bWFzayBpZD0iYiIgbWFzay10eXBlPSJhbHBoYSIgbWFza1VuaXRzPSJ1c2VyU3BhY2VPblVzZSIgeD0iMCIgeT0iMCIgd2lkdGg9IjIwIiBoZWlnaHQ9IjIwIj48ZyBjbGlwLXBhdGg9InVybCgjYSkiIGZpbGw9IiMwNjBBMEMiIGZpbGwtb3BhY2l0eT0iLjk1NyIgZmlsbC1ydWxlPSJldmVub2RkIj48cGF0aCBkPSJNNC43NSAxNS43NUM0Ljc1IDEzLjY3IDYuNDIgMTIgOC41IDEyaDNjMi4wNyAwIDMuNzUgMS42NyAzLjc1IDMuNzUgMCAuOTYtLjc5IDEuNzUtMS43NSAxLjc1aC03Yy0uOTcgMC0xLjc1LS43OS0xLjc1LTEuNzVNOC41IDEzLjVjLTEuMjUgMC0yLjI1IDEtMi4yNSAyLjI1IDAgLjEzLjExLjI1LjI1LjI1aDdjLjEzIDAgLjI1LS4xMi4yNS0uMjUgMC0xLjI1LTEuMDEtMi4yNS0yLjI1LTIuMjV6bS0xLjI1LTdjMC0xLjUyIDEuMjMtMi43NSAyLjc1LTIuNzUgMS41MSAwIDIuNzUgMS4yMyAyLjc1IDIuNzV2MWMwIDEuNTEtMS4yNCAyLjc1LTIuNzUgMi43NS0xLjUyIDAtMi43NS0xLjI0LTIuNzUtMi43NXpNMTAgNS4yNWMtLjcgMC0xLjI1LjU2LTEuMjUgMS4yNXYxYzAgLjY4LjU1IDEuMjUgMS4yNSAxLjI1LjY5IDAgMS4yNS0uNTcgMS4yNS0xLjI1di0xYzAtLjY5LS41Ni0xLjI1LTEuMjUtMS4yNSIvPjwvZz48L21hc2s+PGcgbWFzaz0idXJsKCNiKSI+PHBhdGggZmlsbD0iIzE1NDlBQiIgZD0iTTAgMGgyMHYyMEgweiIvPjwvZz48L3N2Zz4=')
+    on conflict do nothing;
+
+  lb-ssd-side-menu-svc-db-13.sql: |
+    INSERT INTO ssd_menu_svc.asset (type, key, value) values
+    ('logo', 'sber_logo', 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTE3LjAwMDAwMCIgaGVpZ2h0PSI0MC4wMDAwMDAiIHZpZXdCb3g9IjAgMCAxMTcgNDAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgeG1sbnM6eGxpbms9Imh0dHA6Ly93d3cudzMub3JnLzE5OTkveGxpbmsiPgoJPGRlc2M+CgkJCUNyZWF0ZWQgd2l0aCBQaXhzby4KCTwvZGVzYz4KCTxkZWZzPgoJCTxjbGlwUGF0aCBpZD0iY2xpcDkzOF8xMDQzMjYiPgoJCQk8cmVjdCBpZD0ibG9nbyIgd2lkdGg9IjExNy4wMDAwMDAiIGhlaWdodD0iNDAuMDAwMDAwIiBmaWxsPSJ3aGl0ZSIgZmlsbC1vcGFjaXR5PSIwIi8+CgkJPC9jbGlwUGF0aD4KCTwvZGVmcz4KCTxyZWN0IGlkPSJsb2dvIiB3aWR0aD0iMTE3LjAwMDAwMCIgaGVpZ2h0PSI0MC4wMDAwMDAiIGZpbGw9IiNGRkZGRkYiIGZpbGwtb3BhY2l0eT0iMS4wMDAwMDAiLz4KCTxnIGNsaXAtcGF0aD0idXJsKCNjbGlwOTM4XzEwNDMyNikiPgoJCTxwYXRoIGlkPSJwYXRoIiBkPSJNNTAuMDkgMTguMzNDNDcuODcgMTcuOCA0NS45NyAxNy4zNSA0NS45NyAxNS44MUM0NS45NyAxMy43NCA0OC41MiAxMy41MiA0OS42MiAxMy41MkM1MC44NCAxMy40NyA1Mi4wNCAxMy43MiA1My4xNCAxNC4yNEw1Ni4yMSAxMkM1NC4yMyAxMC44IDUxLjk2IDEwLjE1IDQ5LjY1IDEwLjEzQzQzLjg4IDEwLjEzIDQxLjgzIDEzLjE4IDQxLjgzIDE2LjA0QzQxLjgzIDIwLjE1IDQ1LjQyIDIxLjAxIDQ4LjU4IDIxLjc3QzUwLjgxIDIyLjMgNTIuNzMgMjIuNzYgNTIuNzMgMjQuMzNDNTIuNzMgMjUuMTMgNTIuMjUgMjYuNDggNDkuMDIgMjYuNDhDNDYuODIgMjYuNDYgNDQuNjggMjUuNzggNDIuODcgMjQuNTJMNDEuNDYgMjcuNzJDNDMuMTYgMjkuMDQgNDYuMSAyOS44OSA0OC45OSAyOS44OUM1My43NyAyOS44OSA1Ni44NyAyNy41OCA1Ni44NyAyNEM1Ni44NiAxOS45MiA1My4yNiAxOS4wNyA1MC4wOSAxOC4zM1oiIGZpbGw9IiMxRDFEMUQiIGZpbGwtb3BhY2l0eT0iMS4wMDAwMDAiIGZpbGwtcnVsZT0ibm9uemVybyIvPgoJCTxwYXRoIGlkPSJwYXRoIiBkPSJNNzQuMzYgMTkuNjlMNzQuMTcgMTkuNjNMNzQuMzUgMTkuNTNDNzUuMTEgMTkuMTQgNzUuNzQgMTguNTQgNzYuMTcgMTcuODFDNzYuNiAxNy4wNyA3Ni44MiAxNi4yMyA3Ni44IDE1LjM4Qzc2LjggMTIuMyA3NC4xNyAxMC40NiA2OS43OCAxMC40Nkw2MC43MSAxMC40Nkw2MC43MSAyOS41NUw3MC4zMiAyOS41NUM3NS4xIDI5LjU1IDc3LjczIDI3LjcyIDc3LjczIDI0LjM4Qzc3Ljc4IDIzLjM0IDc3LjQ3IDIyLjMxIDc2Ljg2IDIxLjQ2Qzc2LjI1IDIwLjYxIDc1LjM3IDE5Ljk5IDc0LjM2IDE5LjY5Wk02NC44NCAxMy42M0w2OS4yNSAxMy42M0M3Mi4wMiAxMy42MyA3Mi42MiAxNC45IDcyLjYyIDE1Ljk2QzcyLjYyIDE3LjUgNzEuNDYgMTguMjkgNjkuMjUgMTguMjlMNjQuODQgMTguMjlMNjQuODQgMTMuNjNaTTY5LjI1IDE4LjI5TDY0Ljg0IDE4LjI5TDY5LjI1IDE4LjI5Wk03MCAyNi4zNkw2NC44NCAyNi4zNkw2NC44NCAyMS40N0w3MCAyMS40N0M3Mi4zNSAyMS40NyA3My41NCAyMi4yOCA3My41NCAyMy45MkM3My41NCAyNS41NSA3Mi4zOCAyNi4zNiA3MCAyNi4zNloiIGZpbGw9IiMxRDFEMUQiIGZpbGwtb3BhY2l0eT0iMS4wMDAwMDAiIGZpbGwtcnVsZT0ibm9uemVybyIvPgoJCTxwYXRoIGlkPSJwYXRoIiBkPSJNOTEuNzQgMTMuNjNMOTYuMDYgMTAuNDVMODEuNTggMTAuNDVMODEuNTggMjkuNTRMOTYuMDYgMjkuNTRMOTYuMDYgMjYuMzZMODUuNzIgMjYuMzZMODUuNzIgMjEuNDdMOTQuNTUgMjEuNDdMOTQuNTUgMTguMjlMODUuNzIgMTguMjlMODUuNzIgMTMuNjNMOTEuNzQgMTMuNjNaIiBmaWxsPSIjMUQxRDFEIiBmaWxsLW9wYWNpdHk9IjEuMDAwMDAwIiBmaWxsLXJ1bGU9Im5vbnplcm8iLz4KCQk8cGF0aCBpZD0icGF0aCIgZD0iTTExNi4yNSAyOS41NEwxMTIuMDUgMjMuMzNDMTE0LjUzIDIyLjI2IDExNS45NiAyMC4xMyAxMTUuOTYgMTcuMjhDMTE1Ljk2IDEzLjA3IDExMi44NCAxMC40NSAxMDcuOCAxMC40NUw5OS45MSAxMC40NUw5OS45MSAyOS41NEwxMDQuMDQgMjkuNTRMMTA0LjA0IDI0LjEzTDEwNy43OSAyNC4xM0wxMDguMTQgMjQuMTNMMTExLjgxIDI5LjU1TDExNi4yNSAyOS41NFpNMTA0LjA0IDEzLjYzTDEwNy43IDEzLjYzQzExMC4zNSAxMy42MyAxMTEuODEgMTQuOTMgMTExLjgxIDE3LjI5QzExMS44MSAxOS42NSAxMTAuMzUgMjAuOTUgMTA3LjcgMjAuOTVMMTA0LjA0IDIwLjk1TDEwNC4wNCAxMy42M1oiIGZpbGw9IiMxRDFEMUQiIGZpbGwtb3BhY2l0eT0iMS4wMDAwMDAiIGZpbGwtcnVsZT0ibm9uemVybyIvPgoJCTxwYXRoIGlkPSJwYXRoIiBkPSJNMzIuMjMgMTkuOTlDMzIuMjQgMTkuMDQgMzIuMTUgMTguMDkgMzEuOTggMTcuMTVMMjguNTUgMTkuNjdDMjguNTUgMTkuNzggMjguNTUgMTkuODggMjguNTUgMTkuOTlDMjguNTUgMjIuNzIgMjcuNjQgMjUuMzcgMjUuOTUgMjcuNTNDMjQuMjcgMjkuNjggMjEuOTEgMzEuMiAxOS4yNSAzMS44NkMxNi41OSAzMi41MiAxMy43OSAzMi4yNyAxMS4yOSAzMS4xNkM4Ljc5IDMwLjA1IDYuNzMgMjguMTMgNS40NSAyNS43MkM0LjE3IDIzLjMgMy43NCAyMC41MyA0LjIzIDE3Ljg1QzQuNzEgMTUuMTYgNi4wOCAxMi43MSA4LjEzIDEwLjlDMTAuMTcgOS4wOCAxMi43NyA4IDE1LjUgNy44MkMxOC4yMyA3LjY0IDIwLjk1IDguMzggMjMuMjEgOS45MkwyNi4zIDcuNjVDMjMuNDkgNS4zOSAyMCA0LjE1IDE2LjM5IDQuMTRDMTIuNzggNC4xMiA5LjI3IDUuMzIgNi40NCA3LjU2QzMuNjEgOS43OSAxLjYyIDEyLjkxIDAuOCAxNi40MkMtMC4wMSAxOS45MiAwLjM5IDIzLjYgMS45NSAyNi44NEMzLjUxIDMwLjA4IDYuMTMgMzIuNzEgOS4zOCAzNC4yN0MxMi42MyAzNS44NCAxNi4zMiAzNi4yNiAxOS44NCAzNS40NkMyMy4zNiAzNC42NiAyNi41IDMyLjcgMjguNzUgMjkuODlDMzEgMjcuMDcgMzIuMjQgMjMuNTkgMzIuMjMgMTkuOTlaIiBmaWxsPSIjMUQxRDFEIiBmaWxsLW9wYWNpdHk9IjEuMDAwMDAwIiBmaWxsLXJ1bGU9Im5vbnplcm8iLz4KCQk8cGF0aCBpZD0icGF0aCIgZD0iTTI4LjkxIDEwLjI5QzI5LjY3IDExLjI3IDMwLjMxIDEyLjMzIDMwLjgyIDEzLjQ1TDE2LjMxIDI0LjFMMTAuMjUgMjAuMzFMMTAuMjUgMTUuNzZMMTYuMzEgMTkuNTRMMjguOTEgMTAuMjlaIiBmaWxsPSIjMUQxRDFEIiBmaWxsLW9wYWNpdHk9IjEuMDAwMDAwIiBmaWxsLXJ1bGU9Im5vbnplcm8iLz4KCTwvZz4KPC9zdmc+Cg=='),
+    ('icon', 'source_control', 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAuMDAwMDAwIiBoZWlnaHQ9IjIwLjAwMDAwMCIgdmlld0JveD0iMCAwIDIwIDIwIiBmaWxsPSJub25lIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHhtbG5zOnhsaW5rPSJodHRwOi8vd3d3LnczLm9yZy8xOTk5L3hsaW5rIj4KCTxkZXNjPgoJCQlDcmVhdGVkIHdpdGggUGl4c28uCgk8L2Rlc2M+Cgk8ZGVmcz4KCQk8Y2xpcFBhdGggaWQ9ImNsaXAzMzRfMjg5MiI+CgkJCTxyZWN0IGlkPSJTb3JjZUNvbnRyb2wiIHdpZHRoPSIyMC4wMDAwMDAiIGhlaWdodD0iMjAuMDAwMDAwIiBmaWxsPSJ3aGl0ZSIgZmlsbC1vcGFjaXR5PSIwIi8+CgkJPC9jbGlwUGF0aD4KCTwvZGVmcz4KCTxnIGNsaXAtcGF0aD0idXJsKCNjbGlwMzM0XzI4OTIpIj4KCQk8cGF0aCBpZD0iVmVjdG9yIiBkPSJNMTUuODMgMTYuNjZMNS44MyAxNi42NkM1LjM3IDE2LjY2IDQuOTcgMTYuNSA0LjY1IDE2LjE3QzQuMzIgMTUuODUgNC4xNiAxNS40NiA0LjE2IDE1TDQuMTYgNUM0LjE2IDQuNTQgNC4zMiA0LjE0IDQuNjUgMy44MkM0Ljk3IDMuNDkgNS4zNyAzLjMzIDUuODMgMy4zM0wxNS44MyAzLjMzTDE1LjgzIDE2LjY2WiIgc3Ryb2tlPSIjMTU0OUFCIiBzdHJva2Utb3BhY2l0eT0iMS4wMDAwMDAiIHN0cm9rZS13aWR0aD0iMS42MDAwMDAiIHN0cm9rZS1saW5lam9pbj0icm91bmQiLz4KCQk8cGF0aCBpZD0iVmVjdG9yIiBkPSJNMTUuODMgMTMuMzNMNS44MyAxMy4zM0M1LjM3IDEzLjMzIDQuOTcgMTMuNDkgNC42NSAxMy44MkM0LjMyIDE0LjE0IDQuMTYgMTQuNTQgNC4xNiAxNSIgc3Ryb2tlPSIjMTU0OUFCIiBzdHJva2Utb3BhY2l0eT0iMS4wMDAwMDAiIHN0cm9rZS13aWR0aD0iMS42MDAwMDAiIHN0cm9rZS1saW5lam9pbj0icm91bmQiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIvPgoJCTxwYXRoIGlkPSJMaW5lIiBkPSJNNy41IDYuNjZMMTIuNSA2LjY2IiBzdHJva2U9IiMxNTQ5QUIiIHN0cm9rZS1vcGFjaXR5PSIxLjAwMDAwMCIgc3Ryb2tlLXdpZHRoPSIxLjYwMDAwMCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIi8+Cgk8L2c+Cjwvc3ZnPgo='),
+    ('icon', 'rocker', 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAuMDAwMDAwIiBoZWlnaHQ9IjIwLjAwMDAwMCIgdmlld0JveD0iMCAwIDIwIDIwIiBmaWxsPSJub25lIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHhtbG5zOnhsaW5rPSJodHRwOi8vd3d3LnczLm9yZy8xOTk5L3hsaW5rIj4KCTxkZXNjPgoJCQlDcmVhdGVkIHdpdGggUGl4c28uCgk8L2Rlc2M+Cgk8ZGVmcz4KCQk8Y2xpcFBhdGggaWQ9ImNsaXAzXzgwMCI+CgkJCTxyZWN0IGlkPSJpbzIwLXJvY2tldCIgd2lkdGg9IjIwLjAwMDAwMCIgaGVpZ2h0PSIyMC4wMDAwMDAiIGZpbGw9IndoaXRlIiBmaWxsLW9wYWNpdHk9IjAiLz4KCQk8L2NsaXBQYXRoPgoJPC9kZWZzPgoJPGcgY2xpcC1wYXRoPSJ1cmwoI2NsaXAzXzgwMCkiPgoJCTxwYXRoIGlkPSJwYXRoIiBkPSJNMTAuNTQgNi4wMUw5LjA1IDcuNjNMNi41MyAxMC40N0w5LjUyIDEzLjQ2TDEyLjQ5IDEwLjgxTDEzLjk4IDkuNDVDMTQuMTcgOS4yNiAxNC4zNCA5LjA5IDE0LjQ5IDguOTRDMTQuNzYgOC42OCAxNC45NyA4LjQ3IDE1LjE3IDguMjZDMTUuNDUgNy45NSAxNS42MiA3LjcgMTUuNzMgNy40MUMxNS45NSA2Ljg1IDE1Ljk5IDYuMDMgMTUuODEgNC4xOEMxMy45NiA0IDEzLjE0IDQuMDQgMTIuNTggNC4yNkMxMi4yOSA0LjM3IDEyLjA0IDQuNTQgMTEuNzMgNC44MkMxMS41MiA1LjAyIDExLjMxIDUuMjMgMTEuMDUgNS41QzEwLjkgNS42NSAxMC43MyA1LjgyIDEwLjU0IDYuMDFaTTEyLjQ0IDEyLjg3TDEwLjAxIDE1LjA0TDkuNzYgMTUuMjlMMTAuNSAxNS42NkwxMi42OCAxNC41NkwxMi40NCAxMi44N1pNOC40MyAxNC41TDcuOTYgMTQuOTZDNy43OSAxNS4xNCA3LjcyIDE1LjM4IDcuNzUgMTUuNjJDNy43OSAxNS44NSA3Ljk0IDE2LjA2IDguMTYgMTYuMTdMMTAuMTYgMTcuMTdDMTAuMzcgMTcuMjcgMTAuNjIgMTcuMjcgMTAuODMgMTcuMTdMMTMuODMgMTUuNjdDMTQuMTIgMTUuNTIgMTQuMjggMTUuMjEgMTQuMjQgMTQuODlMMTMuNzkgMTEuNjZMMTUgMTAuNTVDMTUuMTYgMTAuMzkgMTUuMzQgMTAuMjEgMTUuNSAxMC4wNkMxNS43OSA5Ljc4IDE2LjA2IDkuNTIgMTYuMjggOS4yN0MxNi42MyA4Ljg4IDE2LjkzIDguNDggMTcuMTMgNy45NUMxNy41MiA2Ljk0IDE3LjQ5IDUuNjMgMTcuMjQgMy40MUMxNy4yIDMuMDYgMTYuOTMgMi43OSAxNi41OCAyLjc1QzE0LjM2IDIuNSAxMy4wNSAyLjQ3IDEyLjA0IDIuODZDMTEuNTEgMy4wNiAxMS4xMSAzLjM2IDEwLjcyIDMuNzFDMTAuNDcgMy45MyAxMC4yMSA0LjIgOS45MyA0LjQ5QzkuNzggNC42NSA5LjYyIDQuOCA5LjQ2IDQuOTZMOC4yMiA2LjMyTDUuMTMgNS43NkM0LjggNS43IDQuNDcgNS44NiA0LjMyIDYuMTZMMi44MiA5LjE2QzIuNzIgOS4zNyAyLjcyIDkuNjIgMi44MiA5LjgzTDMuODIgMTEuODNDMy45MyAxMi4wNSA0LjE0IDEyLjIgNC4zNyAxMi4yNEM0LjYxIDEyLjI3IDQuODUgMTIuMiA1LjAzIDEyLjAzTDUuNSAxMS41Nkw4LjQzIDE0LjVaTTQuNyAxMC4yM0w0Ljk1IDkuOThMNy4wNSA3LjYzTDUuNDEgNy4zM0w0LjMzIDkuNUw0LjcgMTAuMjNaIiBmaWxsPSIjMDYwQTBDIiBmaWxsLW9wYWNpdHk9IjAuOTU2ODYzIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiLz4KCQk8cGF0aCBpZD0icGF0aCIgZD0iTTEyLjUgN0MxMi4yMiA3IDEyIDcuMjIgMTIgNy41QzEyIDcuNzcgMTIuMjIgOCAxMi41IDhDMTIuNzcgOCAxMyA3Ljc3IDEzIDcuNUMxMyA3LjIyIDEyLjc3IDcgMTIuNSA3Wk0xMSA3LjVDMTEgNi42NyAxMS42NyA2IDEyLjUgNkMxMy4zMiA2IDE0IDYuNjcgMTQgNy41QzE0IDguMzIgMTMuMzIgOSAxMi41IDlDMTEuNjcgOSAxMSA4LjMyIDExIDcuNVoiIGZpbGw9IiMwNjBBMEMiIGZpbGwtb3BhY2l0eT0iMC45NTY4NjMiIGZpbGwtcnVsZT0iZXZlbm9kZCIvPgoJCTxwYXRoIGlkPSJwYXRoIiBkPSJNNS4wMyAxMy40NkM1LjMyIDEzLjc2IDUuMzIgMTQuMjMgNS4wMyAxNC41M0wzLjAzIDE2LjUzQzIuNzMgMTYuODIgMi4yNiAxNi44MiAxLjk2IDE2LjUzQzEuNjcgMTYuMjMgMS42NyAxNS43NiAxLjk2IDE1LjQ2TDMuOTYgMTMuNDZDNC4yNiAxMy4xNyA0LjczIDEzLjE3IDUuMDMgMTMuNDZaTTYuNTMgMTQuOTZDNi44MiAxNS4yNiA2LjgyIDE1LjczIDYuNTMgMTYuMDNMNS4wMyAxNy41M0M0LjczIDE3LjgyIDQuMjYgMTcuODIgMy45NiAxNy41M0MzLjY3IDE3LjIzIDMuNjcgMTYuNzYgMy45NiAxNi40Nkw1LjQ2IDE0Ljk2QzUuNzYgMTQuNjcgNi4yMyAxNC42NyA2LjUzIDE0Ljk2WiIgZmlsbD0iIzA2MEEwQyIgZmlsbC1vcGFjaXR5PSIwLjk1Njg2MyIgZmlsbC1ydWxlPSJldmVub2RkIi8+Cgk8L2c+Cjwvc3ZnPgo='),
+    ('icon', 'folder', 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAuMDAwMDAwIiBoZWlnaHQ9IjIwLjAwMDAwMCIgdmlld0JveD0iMCAwIDIwIDIwIiBmaWxsPSJub25lIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHhtbG5zOnhsaW5rPSJodHRwOi8vd3d3LnczLm9yZy8xOTk5L3hsaW5rIj4KCTxkZXNjPgoJCQlDcmVhdGVkIHdpdGggUGl4c28uCgk8L2Rlc2M+Cgk8ZGVmcz4KCQk8Y2xpcFBhdGggaWQ9ImNsaXAzXzY5NyI+CgkJCTxyZWN0IGlkPSJpbzIwLWZvbGRlciIgd2lkdGg9IjIwLjAwMDAwMCIgaGVpZ2h0PSIyMC4wMDAwMDAiIGZpbGw9IndoaXRlIiBmaWxsLW9wYWNpdHk9IjAiLz4KCQk8L2NsaXBQYXRoPgoJPC9kZWZzPgoJPGcgY2xpcC1wYXRoPSJ1cmwoI2NsaXAzXzY5NykiPgoJCTxwYXRoIGlkPSJwYXRoIiBkPSJNMy4yNSA0QzMuMTEgNCAzIDQuMTEgMyA0LjI1TDMgMTUuNzVDMyAxNS44OCAzLjExIDE2IDMuMjUgMTZMMTYuNzUgMTZDMTYuODggMTYgMTcgMTUuODggMTcgMTUuNzVMMTcgNi4yNUMxNyA2LjExIDE2Ljg4IDYgMTYuNzUgNkwxMS41IDZDMTEuMjIgNiAxMC45NyA1Ljg1IDEwLjg0IDUuNjFMMTAuMTMgNC4xMkMxMC4wOCA0LjA0IDEwIDQgOS45MSA0TDMuMjUgNFpNMS41IDQuMjVDMS41IDMuMjggMi4yOCAyLjUgMy4yNSAyLjVMOS45MSAyLjVDMTAuNTQgMi41IDExLjEyIDIuODQgMTEuNDQgMy4zOUwxMS45MyA0LjVMMTYuNzUgNC41QzE3LjcxIDQuNSAxOC41IDUuMjggMTguNSA2LjI1TDE4LjUgMTUuNzVDMTguNSAxNi43MSAxNy43MSAxNy41IDE2Ljc1IDE3LjVMMy4yNSAxNy41QzIuMjggMTcuNSAxLjUgMTYuNzEgMS41IDE1Ljc1TDEuNSA0LjI1Wk0xNC4yNSAxMEw1Ljc1IDEwQzUuMzMgMTAgNSA5LjY2IDUgOS4yNUM1IDguODMgNS4zMyA4LjUgNS43NSA4LjVMMTQuMjUgOC41QzE0LjY2IDguNSAxNSA4LjgzIDE1IDkuMjVDMTUgOS42NiAxNC42NiAxMCAxNC4yNSAxMFoiIGZpbGw9IiMwNjBBMEMiIGZpbGwtb3BhY2l0eT0iMC45NTY4NjMiIGZpbGwtcnVsZT0iZXZlbm9kZCIvPgoJPC9nPgo8L3N2Zz4K'),
+    ('icon', 'flag', 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAuMDAwMDAwIiBoZWlnaHQ9IjIwLjAwMDAwMCIgdmlld0JveD0iMCAwIDIwIDIwIiBmaWxsPSJub25lIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHhtbG5zOnhsaW5rPSJodHRwOi8vd3d3LnczLm9yZy8xOTk5L3hsaW5rIj4KCTxkZXNjPgoJCQlDcmVhdGVkIHdpdGggUGl4c28uCgk8L2Rlc2M+Cgk8ZGVmcz4KCQk8Y2xpcFBhdGggaWQ9ImNsaXAzXzY5NiI+CgkJCTxyZWN0IGlkPSJpbzIwLWZsYWciIHdpZHRoPSIyMC4wMDAwMDAiIGhlaWdodD0iMjAuMDAwMDAwIiBmaWxsPSJ3aGl0ZSIgZmlsbC1vcGFjaXR5PSIwIi8+CgkJPC9jbGlwUGF0aD4KCTwvZGVmcz4KCTxnIGNsaXAtcGF0aD0idXJsKCNjbGlwM182OTYpIj4KCQk8cGF0aCBpZD0icGF0aCIgZD0iTTQuMjEgMy43MUM0LjM2IDMuNTcgNC41NSAzLjUgNC43NSAzLjVMNi43NCAzLjVDNy45NyAzLjUgOC44OSA0LjExIDkuNjEgNC41OUMxMC4zOCA1LjEgMTEgNS41IDExLjc1IDUuNUwxNC43NSA1LjVDMTUuMTYgNS41IDE1LjUgNS44MyAxNS41IDYuMjVMMTUuNSAxNC4yNUMxNS41IDE0LjY2IDE1LjE2IDE1IDE0Ljc1IDE1TDExLjc1IDE1QzEwLjUyIDE1IDkuNiAxNC4zOCA4Ljg4IDEzLjlDOC4xMSAxMy4zOSA3LjQ5IDEzIDYuNzUgMTNMNS41IDEzTDUuNSAxNi4yNUM1LjUgMTYuNjYgNS4xNiAxNyA0Ljc1IDE3QzQuMzMgMTcgNCAxNi42NiA0IDE2LjI1TDQgNC4yNUM0IDQuMDUgNC4wNyAzLjg2IDQuMjEgMy43MVpNNS41IDExLjVMNi43NSAxMS41QzcuOTcgMTEuNSA4Ljg5IDEyLjExIDkuNjEgMTIuNTlDMTAuMzggMTMuMSAxMSAxMy41IDExLjc1IDEzLjVMMTQgMTMuNUwxNCA3TDExLjc1IDdDMTAuNTIgNyA5LjYgNi4zOCA4Ljg4IDUuOUM4LjExIDUuMzkgNy40OSA1IDYuNzUgNUw1LjUgNUw1LjUgMTEuNVoiIGZpbGw9IiMwNjBBMEMiIGZpbGwtb3BhY2l0eT0iMC45NTY4NjMiIGZpbGwtcnVsZT0iZXZlbm9kZCIvPgoJPC9nPgo8L3N2Zz4K'),
+    ('icon', 'constructor', 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAuMDAwMDAwIiBoZWlnaHQ9IjIwLjAwMDAwMCIgdmlld0JveD0iMCAwIDIwIDIwIiBmaWxsPSJub25lIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHhtbG5zOnhsaW5rPSJodHRwOi8vd3d3LnczLm9yZy8xOTk5L3hsaW5rIj4KCTxkZXNjPgoJCQlDcmVhdGVkIHdpdGggUGl4c28uCgk8L2Rlc2M+Cgk8ZGVmcz4KCQk8Y2xpcFBhdGggaWQ9ImNsaXAzXzgxNCI+CgkJCTxyZWN0IGlkPSJpbzIwLWNvbnN0cnVjdG9yIiB3aWR0aD0iMjAuMDAwMDAwIiBoZWlnaHQ9IjIwLjAwMDAwMCIgZmlsbD0id2hpdGUiIGZpbGwtb3BhY2l0eT0iMCIvPgoJCTwvY2xpcFBhdGg+Cgk8L2RlZnM+Cgk8ZyBjbGlwLXBhdGg9InVybCgjY2xpcDNfODE0KSI+CgkJPHBhdGggaWQ9InBhdGgiIGQ9Ik0xMC4yNSA2LjE2QzkuODQgNS40NiAxMC4wOCA0LjU1IDEwLjc5IDQuMTVMMTMuODMgMi4zOUMxNC41MyAxLjk4IDE1LjQ0IDIuMjMgMTUuODQgMi45M0wxNy42IDUuOTdDMTguMDEgNi42OCAxNy43NiA3LjU4IDE3LjA2IDcuOTlMMTQuMDIgOS43NEMxMy4zMSAxMC4xNSAxMi40MSA5LjkxIDEyIDkuMkwxMC4yNSA2LjE2Wk0xMS42MyA1LjQ1TDEzLjMxIDguMzZMMTYuMjIgNi42OEwxNC41NCAzLjc3TDExLjYzIDUuNDVaIiBmaWxsPSIjMDYwQTBDIiBmaWxsLW9wYWNpdHk9IjAuOTU2ODYzIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiLz4KCQk8cGF0aCBpZD0icGF0aCIgZD0iTTMuOTIgMi40NEMzLjEgMi40NCAyLjQ0IDMuMSAyLjQ0IDMuOTJMMi40NCA3LjVDMi40NCA4LjMyIDMuMSA4Ljk4IDMuOTIgOC45OEw3LjUxIDguOThDOC4zMyA4Ljk4IDguOTkgOC4zMiA4Ljk5IDcuNUw4Ljk5IDMuOTJDOC45OSAzLjEgOC4zMyAyLjQ0IDcuNTEgMi40NEwzLjkyIDIuNDRaTTMuOTkgNy40MkwzLjk5IDRMNy40NCA0TDcuNDQgNy40MkwzLjk5IDcuNDJaIiBmaWxsPSIjMDYwQTBDIiBmaWxsLW9wYWNpdHk9IjAuOTU2ODYzIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiLz4KCQk8cGF0aCBpZD0icGF0aCIgZD0iTTIuNDQgMTIuNDhDMi40NCAxMS42NiAzLjEgMTEgMy45MiAxMUw3LjUxIDExQzguMzMgMTEgOC45OSAxMS42NiA4Ljk5IDEyLjQ4TDguOTkgMTYuMDFDOC45OSAxNi44MyA4LjMzIDE3LjUgNy41MSAxNy41TDMuOTIgMTcuNUMzLjEgMTcuNSAyLjQ0IDE2LjgzIDIuNDQgMTYuMDFMMi40NCAxMi40OFpNMy45OSAxMi41NUwzLjk5IDE1Ljk0TDcuNDQgMTUuOTRMNy40NCAxMi41NUwzLjk5IDEyLjU1WiIgZmlsbD0iIzA2MEEwQyIgZmlsbC1vcGFjaXR5PSIwLjk1Njg2MyIgZmlsbC1ydWxlPSJldmVub2RkIi8+CgkJPHBhdGggaWQ9InBhdGgiIGQ9Ik0xMSAxMi40OEMxMSAxMS42NiAxMS42NiAxMSAxMi40OCAxMUwxNi4wNyAxMUMxNi44OSAxMSAxNy41NSAxMS42NiAxNy41NSAxMi40OEwxNy41NSAxNi4wMUMxNy41NSAxNi44MyAxNi44OSAxNy41IDE2LjA3IDE3LjVMMTIuNDggMTcuNUMxMS42NiAxNy41IDExIDE2LjgzIDExIDE2LjAxTDExIDEyLjQ4Wk0xMi41NSAxMi41NUwxMi41NSAxNS45NEwxNiAxNS45NEwxNiAxMi41NUwxMi41NSAxMi41NVoiIGZpbGw9IiMwNjBBMEMiIGZpbGwtb3BhY2l0eT0iMC45NTY4NjMiIGZpbGwtcnVsZT0iZXZlbm9kZCIvPgoJPC9nPgo8L3N2Zz4K'),
+    ('icon', 'branch', 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAuMDAwMDAwIiBoZWlnaHQ9IjIwLjAwMDAwMCIgdmlld0JveD0iMCAwIDIwIDIwIiBmaWxsPSJub25lIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHhtbG5zOnhsaW5rPSJodHRwOi8vd3d3LnczLm9yZy8xOTk5L3hsaW5rIj4KCTxkZXNjPgoJCQlDcmVhdGVkIHdpdGggUGl4c28uCgk8L2Rlc2M+Cgk8ZGVmcz4KCQk8Y2xpcFBhdGggaWQ9ImNsaXAzXzY5MiI+CgkJCTxyZWN0IGlkPSJpbzIwLWJyYW5jaCIgd2lkdGg9IjIwLjAwMDAwMCIgaGVpZ2h0PSIyMC4wMDAwMDAiIGZpbGw9IndoaXRlIiBmaWxsLW9wYWNpdHk9IjAiLz4KCQk8L2NsaXBQYXRoPgoJPC9kZWZzPgoJPGcgY2xpcC1wYXRoPSJ1cmwoI2NsaXAzXzY5MikiPgoJCTxwYXRoIGlkPSJwYXRoIiBkPSJNNS4yNSA3LjlDMy45NSA3LjU3IDMgNi4zOSAzIDVDMyAzLjM0IDQuMzQgMiA2IDJDNy40IDIgOC41OCAyLjk3IDguOTEgNC4yN0MxMS41IDQuNDQgMTMuMDYgNS4zNSAxMy45IDYuODlDMTQuMzUgNy43IDE0LjU1IDguNjIgMTQuNjUgOS41NkMxNC43IDEwLjA3IDE0LjczIDEwLjYgMTQuNzQgMTEuMTRDMTUuNDcgMTEuNDMgMTYgMTIuMTUgMTYgMTNDMTYgMTQuMSAxNS4xIDE1IDE0IDE1QzEyLjg5IDE1IDEyIDE0LjEgMTIgMTNDMTIgMTIuMTYgMTIuNTEgMTEuNDQgMTMuMjQgMTEuMTRDMTMuMjMgMTAuNjQgMTMuMiAxMC4xNyAxMy4xNiA5LjcxQzEzLjA3IDguODcgMTIuODkgOC4xNyAxMi41OSA3LjZDMTIuMDggNi42OCAxMS4xIDUuOTMgOC44OSA1Ljc4QzguNjEgNi44MSA3Ljc5IDcuNjMgNi43NSA3LjlMNi43NSAxMi4wOUM4LjA0IDEyLjQyIDkgMTMuNiA5IDE1QzkgMTYuNjUgNy42NSAxOCA2IDE4QzQuMzQgMTggMyAxNi42NSAzIDE1QzMgMTMuNiAzLjk1IDEyLjQyIDUuMjUgMTIuMDlMNS4yNSA3LjlaTTQuNSA1QzQuNSA1LjgyIDUuMTcgNi41IDYgNi41QzYuODIgNi41IDcuNSA1LjgyIDcuNSA1QzcuNSA0LjE3IDYuODIgMy41IDYgMy41QzUuMTcgMy41IDQuNSA0LjE3IDQuNSA1Wk00LjUgMTVDNC41IDE1LjgyIDUuMTcgMTYuNSA2IDE2LjVDNi44MiAxNi41IDcuNSAxNS44MiA3LjUgMTVDNy41IDE0LjE3IDYuODIgMTMuNSA2IDEzLjVDNS4xNyAxMy41IDQuNSAxNC4xNyA0LjUgMTVaIiBmaWxsPSIjMDYwQTBDIiBmaWxsLW9wYWNpdHk9IjAuOTU2ODYzIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiLz4KCTwvZz4KPC9zdmc+Cg=='),
+    ('icon', 'dashboard', 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAuMDAwMDAwIiBoZWlnaHQ9IjIwLjAwMDAwMCIgdmlld0JveD0iMCAwIDIwIDIwIiBmaWxsPSJub25lIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHhtbG5zOnhsaW5rPSJodHRwOi8vd3d3LnczLm9yZy8xOTk5L3hsaW5rIj4KCTxkZXNjPgoJCQlDcmVhdGVkIHdpdGggUGl4c28uCgk8L2Rlc2M+Cgk8ZGVmcz4KCQk8Y2xpcFBhdGggaWQ9ImNsaXAzMzRfMjg2NiI+CgkJCTxyZWN0IGlkPSJsYXlvdXQtZGFzaGJvYXJkIiB3aWR0aD0iMjAuMDAwMDAwIiBoZWlnaHQ9IjIwLjAwMDAwMCIgZmlsbD0id2hpdGUiIGZpbGwtb3BhY2l0eT0iMCIvPgoJCTwvY2xpcFBhdGg+Cgk8L2RlZnM+Cgk8cmVjdCBpZD0iRGFzaGJvYXJkIiB3aWR0aD0iMjAuMDAwMDAwIiBoZWlnaHQ9IjIwLjAwMDAwMCIgZmlsbD0iI0ZGRkZGRiIgZmlsbC1vcGFjaXR5PSIwIi8+Cgk8bWFzayBpZD0ibWFzazMzNF8yODY2IiBtYXNrLXR5cGU9ImFscGhhIiBtYXNrVW5pdHM9InVzZXJTcGFjZU9uVXNlIiB4PSIwLjAwMDAwMCIgeT0iMC4wMDAwMDAiIHdpZHRoPSIyMC4wMDAwMDAiIGhlaWdodD0iMjAuMDAwMDAwIj4KCQk8ZyBjbGlwLXBhdGg9InVybCgjY2xpcDMzNF8yODY2KSI+CgkJCTxwYXRoIGlkPSJWZWN0b3IiIGQ9Ik04LjMzIDIuNUwzLjMzIDIuNUMyLjgzIDIuNSAyLjUgMi44MyAyLjUgMy4zM0wyLjUgMTBDMi41IDEwLjUgMi44MyAxMC44MyAzLjMzIDEwLjgzTDguMzMgMTAuODNDOC44MyAxMC44MyA5LjE2IDEwLjUgOS4xNiAxMEw5LjE2IDMuMzNDOS4xNiAyLjgzIDguODMgMi41IDguMzMgMi41Wk0xNi42NiAyLjVMMTEuNjYgMi41QzExLjE2IDIuNSAxMC44MyAyLjgzIDEwLjgzIDMuMzNMMTAuODMgNi42NkMxMC44MyA3LjE2IDExLjE2IDcuNSAxMS42NiA3LjVMMTYuNjYgNy41QzE3LjE2IDcuNSAxNy41IDcuMTYgMTcuNSA2LjY2TDE3LjUgMy4zM0MxNy41IDIuODMgMTcuMTYgMi41IDE2LjY2IDIuNVpNNy41IDkuMTZMNC4xNiA5LjE2TDQuMTYgNC4xNkw3LjUgNC4xNkw3LjUgOS4xNlpNMTUuODMgNS44M0wxMi41IDUuODNMMTIuNSA0LjE2TDE1LjgzIDQuMTZMMTUuODMgNS44M1pNMTYuNjYgOS4xNkwxMS42NiA5LjE2QzExLjE2IDkuMTYgMTAuODMgOS41IDEwLjgzIDEwTDEwLjgzIDE2LjY2QzEwLjgzIDE3LjE2IDExLjE2IDE3LjUgMTEuNjYgMTcuNUwxNi42NiAxNy41QzE3LjE2IDE3LjUgMTcuNSAxNy4xNiAxNy41IDE2LjY2TDE3LjUgMTBDMTcuNSA5LjUgMTcuMTYgOS4xNiAxNi42NiA5LjE2Wk0xNS44MyAxNS44M0wxMi41IDE1LjgzTDEyLjUgMTAuODNMMTUuODMgMTAuODNMMTUuODMgMTUuODNaTTguMzMgMTIuNUwzLjMzIDEyLjVDMi44MyAxMi41IDIuNSAxMi44MyAyLjUgMTMuMzNMMi41IDE2LjY2QzIuNSAxNy4xNiAyLjgzIDE3LjUgMy4zMyAxNy41TDguMzMgMTcuNUM4LjgzIDE3LjUgOS4xNiAxNy4xNiA5LjE2IDE2LjY2TDkuMTYgMTMuMzNDOS4xNiAxMi44MyA4LjgzIDEyLjUgOC4zMyAxMi41Wk03LjUgMTUuODNMNC4xNiAxNS44M0w0LjE2IDE0LjE2TDcuNSAxNC4xNkw3LjUgMTUuODNaIiBmaWxsPSIjMDAwMDAwIiBmaWxsLW9wYWNpdHk9IjEuMDAwMDAwIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiLz4KCQk8L2c+Cgk8L21hc2s+Cgk8ZyBtYXNrPSJ1cmwoI21hc2szMzRfMjg2NikiPgoJCTxyZWN0IGlkPSJSZWN0YW5nbGUiIHdpZHRoPSIyMC4wMDAwMDAiIGhlaWdodD0iMjAuMDAwMDAwIiBmaWxsPSIjMTU0OUFCIiBmaWxsLW9wYWNpdHk9IjEuMDAwMDAwIi8+Cgk8L2c+Cjwvc3ZnPgo=')
+    on conflict do nothing;
+
+  lb-ssd-side-menu-svc-db-14.sql: |
+    ALTER TABLE IF EXISTS ssd_menu_svc.context_config ADD COLUMN IF NOT EXISTS "organization_id" TEXT;
+  
+    CREATE UNIQUE INDEX IF NOT EXISTS unique_organization_id_schema_version ON ssd_menu_svc.context_config (organization_id, schema_version);
+
+  lb-ssd-side-menu-svc-db-15.sql: |
+    INSERT INTO ssd_menu_svc.asset(type, key, value) values
+    ('icon', 'roles', 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAiIGhlaWdodD0iMjAiIHZpZXdCb3g9IjAgMCAyMCAyMCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZGVmcz48Y2xpcFBhdGggaWQ9ImEiPjxwYXRoIGZpbGw9IiNmZmYiIGZpbGwtb3BhY2l0eT0iMCIgZD0iTTAgMGgyMHYyMEgweiIvPjwvY2xpcFBhdGg+PC9kZWZzPjxnIGNsaXAtcGF0aD0idXJsKCNhKSIgZmlsbD0iIzE1NDlBQiIgZmlsbC1ydWxlPSJldmVub2RkIj48cGF0aCBkPSJNNi4yMiA3LjU1Yy4yMS40NC40OS44NC44NSAxLjJhNC4zIDQuMyAwIDAgMCAxLjM0LjkxcS43MzUuMyAxLjU5LjNjLjUxIDAgLjk5LS4wOCAxLjQ1LS4yNS4wNC0uMDIuMDktLjA0LjEzLS4wNS4wNS0uMDIuMDktLjA0LjEzLS4wNi40NC0uMi44NC0uNDkgMS4yMS0uODUuMzYtLjM2LjY0LS43Ni44NS0xLjIuMDItLjA1LjAzLS4wOS4wNS0uMTQuMjEtLjQ5LjMxLTEuMDIuMzEtMS41OCAwLS41Mi0uMDktMS0uMjUtMS40NS0uMDItLjA1LS4wNC0uMDktLjA2LS4xNC0uMDItLjA0LS4wMy0uMDktLjA1LS4xMy0uMjEtLjQ0LS40OS0uODQtLjg1LTEuMi0uMzctLjM3LS43Ny0uNjUtMS4yMS0uODUtLjA0LS4wMi0uMDgtLjA0LS4xMy0uMDZhLjcuNyAwIDAgMC0uMTMtLjA1Yy0uNDYtLjE3LS45NC0uMjYtMS40NS0uMjYtLjUyIDAtMSAuMDktMS40Ni4yNi0uMDQuMDEtLjA5LjAzLS4xMy4wNS0uMDUuMDItLjA5LjA0LS4xMy4wNi0uNDQuMi0uODQuNDgtMS4yMS44NS0uMzYuMzYtLjY0Ljc2LS44NSAxLjItLjAyLjA0LS4wMy4wOS0uMDUuMTMtLjAyLjA1LS4wNC4wOS0uMDYuMTRhNC4zMyA0LjMzIDAgMCAwIDAgMi45Yy4wMi4wNC4wNC4wOS4wNi4xMy4wMi4wNS4wMy4wOS4wNS4xNG0yLjguNjNjLS4yOS0uMTItLjU3LS4zMS0uODItLjU2cy0uNDMtLjUyLS41Ni0uODJjLS4xMi0uMjktLjE4LS42Mi0uMTgtLjk3IDAtLjM2LjA2LS42OC4xOC0uOTguMTMtLjI5LjMxLS41Ni41Ni0uODFzLjUzLS40NC44Mi0uNTZjLjMtLjEzLjYyLS4xOS45OC0uMTkuMzUgMCAuNjcuMDYuOTcuMTkuMjkuMTIuNTcuMzEuODIuNTZzLjQzLjUyLjU2LjgxYy4xMi4zLjE4LjYyLjE4Ljk4IDAgLjM1LS4wNi42OC0uMTguOTctLjEzLjMtLjMxLjU3LS41Ni44MnMtLjUzLjQ0LS44Mi41NmMtLjMuMTItLjYyLjE4LS45Ny4xOC0uMzYgMC0uNjgtLjA2LS45OC0uMThtMi42NCA1LjExSDguMzNjLS4zNiAwLS42OC4wNi0uOTguMTktLjI5LjEyLS41Ni4zMS0uODEuNTZzLS40NC41Mi0uNTYuODFjLS4xMi4zLS4xOC42Mi0uMTguOTh2MS42N2MwIC40NC0uMzYuNzktLjguNzktLjQ1IDAtLjgtLjM1LS44LS43OXYtMS42N2MwLS41Mi4wOC0xIC4yNS0xLjQ1LjAxLS4wNS4wMy0uMDkuMDUtLjE0LjAyLS4wNC4wNC0uMDkuMDYtLjEzLjItLjQ0LjQ4LS44NC44NS0xLjIuMzYtLjM3Ljc2LS42NSAxLjItLjg1LjA0LS4wMi4wOS0uMDQuMTMtLjA2LjA1LS4wMi4wOS0uMDQuMTQtLjA1LjQ1LS4xNy45My0uMjYgMS40NS0uMjZoMy4zM2MuNDUgMCAuOC4zNi44LjgxIDAgLjQ0LS4zNS43OS0uOC43OW02LjQgMS40NC0zLjMzIDMuMzNjLS4xOS4xOS0uMzguMjgtLjU3LjI4cy0uMzgtLjA5LS41Ni0uMjhsLTEuNjctMS42N2EuNzg1Ljc4NSAwIDAgMSAwLTEuMTNjLjMyLS4zMS44MS0uMzEgMS4xMyAwbDEuMSAxLjEgMi43Ny0yLjc2Yy4zMi0uMzIuODEtLjMyIDEuMTMgMCAuMzIuMzEuMzIuODEgMCAxLjEzIi8+PC9nPjwvc3ZnPg==')
+    on conflict do nothing;
+
+  lb-ssd-side-menu-svc-db-16.sql: |
+    ALTER TABLE IF EXISTS ssd_menu_svc.latest_user_projects DROP COLUMN IF EXISTS "sort_order";
+    
+    ALTER TABLE IF EXISTS ssd_menu_svc.latest_user_projects ADD COLUMN IF NOT EXISTS last_time_visited TIMESTAMP DEFAULT now() NOT NULL;
+  {{- end }}
+  {{- end }}

@@ -1,0 +1,330 @@
+{{- $context := . }}
+{{- $fullName := include "ssd.fullname" . }}
+{{- $labels := include "ssd.labels" . }}
+{{- $selectorLabels := include "ssd.selectorLabels" . }}
+{{- with .Values.ssdUiAdmin }}
+ {{- if .enable }}
+ {{- $app := .appName }}
+ {{- $fullAppName := printf "%s-%s" $fullName $app }}
+ {{- if .fullAppNameIsShort }}{{ $fullAppName = $fullName }}{{ end }}
+---
+apiVersion: apps/v1
+kind: {{ .appType | default "Deployment" }}
+metadata:
+  name: {{ $fullAppName }}
+  namespace: {{ $context.Release.Namespace }}
+  {{- with .deploymentAnnotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  labels:
+    {{- $labels | nindent 4 }}
+    app: {{ $app }}
+    {{- with .deploymentLabels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  replicas: {{ .replicas | default 1 }}
+  revisionHistoryLimit: {{ .revisionHistoryLimit | default 3 }}
+  {{- if eq .appType "StatefulSet" }}
+  serviceName: {{ $fullAppName }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- $selectorLabels | nindent 6 }}
+      app: {{ $app }}
+  strategy:
+  {{- with .strategy }}
+  {{- toYaml . | nindent 4 }}
+  {{- else }}
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: "25%"
+      maxUnavailable: 0
+  {{- end }}
+  template:
+    metadata:
+      {{- with .podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        {{- $selectorLabels | nindent 8 }}
+        app: {{ $app }}
+        {{- with .podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- if .serviceAccountName }}
+      serviceAccountName: {{ .serviceAccountName }}
+      {{- end }}
+      automountServiceAccountToken: {{ .automountServiceAccountToken | default false }}
+      {{- with $context.Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 6 }}
+      {{- end }}
+      {{- with .initContainers }}
+      initContainers:
+        {{- toYaml . | nindent 6 }}
+      {{- end }}
+      containers:
+      - name: {{ $app }}
+        {{- $repo := .image.registry | default "" }}
+        {{- $path := .image.registryPath | default "" }}
+        {{- $component := .image.component | default "" }}
+        {{- $imageRepository := printf "%s/%s/%s" $repo $path $component }}
+        {{- if eq $imageRepository "//" }}{{ $imageRepository = .image.repository }}{{end}}
+        {{- $imageDigestOrTag := printf ":%s" .image.tag }}
+        {{- if .image.digestSha256 }}{{ $imageDigestOrTag = printf "@sha256:%s" .image.digestSha256 }}{{end}}
+        image: {{ $imageRepository }}{{ $imageDigestOrTag }}
+        imagePullPolicy: {{ .image.pullPolicy }}
+        {{- if .args }}
+        args:
+          {{- range $arg := .args }}
+        - {{ $arg }}
+          {{- end }}
+        {{- end }}
+        {{- if .command }}
+        command:
+          {{- range $arg := .command }}
+        - {{ $arg }}
+          {{- end }}
+        {{- end }}
+      {{- if or .env .envFromSecret }}
+        env:
+        # ENV-vars
+        {{- range $key, $value := .env }}
+        - name: {{ $key | upper }}
+          value: {{ $value | quote }}
+        {{- end }}
+        {{- with .envFromSecret }}
+        # ENV-vars from Secrets
+        {{- range $secretName, $keys := . }}
+          {{- range $key := $keys }}
+        - name: {{ $key }}
+          valueFrom:
+            secretKeyRef:
+              key: {{ $key }}
+              name: {{ $fullName }}-{{ $secretName }}
+              optional: false
+          {{- end }}
+        {{- end }}
+        {{- end }}
+      {{- end }}
+      {{- if or .envFromConfigmap .envFromSecretRef }}
+        envFrom:
+        {{- with .envFromConfigmap }}
+        # ENV-vars from CM
+        {{- range $cm := . }}
+        - configMapRef:
+            name: {{ $fullName }}-{{ $cm }}
+        {{- end }}
+        {{- end }}
+        {{- with .envFromSecretRef }}
+        # ENV-vars from Secret (Full)
+        {{- range $sec := . }}
+        - secretRef:
+            name: {{ $fullName }}-{{ $sec }}
+        {{- end }}
+        {{- end }}
+      {{- end }}
+        {{- if .service }}{{- if .service.ports }}
+        ports:
+          {{- range $port, $name := .service.ports }}
+        - containerPort: {{ $port }}
+          name: {{ $name }}
+          {{- end }}
+        {{- end }}{{- end }}
+      {{- if or .livenessProbe .startupProbe .readinessProbe }}
+        # Probes
+        {{- with .livenessProbe }}
+        livenessProbe:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+        {{- with .startupProbe }}
+        startupProbe:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+        {{- with .readinessProbe }}
+        readinessProbe:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+      {{- end }}
+        # Resources
+        {{- with .resources }}
+        resources:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+        {{- with .securityContext }}
+        securityContext:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+      {{- if or  .volFromConfigmap .volFromSecret .volFromCustom .volFromPVC }}
+        # Volumes
+        volumeMounts:
+        {{- with .volFromConfigmap }}
+        # Mount from CM
+        {{- range $cmName, $cm := . }}
+         {{- range $id, $mount := $cm }}
+        - mountPath: {{ $mount.path }}
+          name: cm-{{ $cmName }}
+          {{- if $mount.readOnly }}
+          readOnly: {{ $mount.readOnly }}
+          {{- end }}
+          {{- if $mount.subPath }}
+          subPath: {{ $mount.subPath }}
+          {{- end }}
+         {{- end }}
+        {{- end }}
+        {{- end }}
+        {{- with .volFromSecret }}
+        # Mount from Secrets
+        {{- range $secName, $sec := . }}
+         {{- range $id, $mount := $sec }}
+        - mountPath: {{ $mount.path }}
+          name: secret-{{ $secName }}
+          readOnly: true
+          {{- if $mount.subPath }}
+          subPath: {{ $mount.subPath }}
+          {{- end }}
+         {{- end }}
+        {{- end }}
+        {{- end }}
+        {{- with .volFromCustom }}
+        # Mount from Custom
+        {{- range $volName, $volume := . }}
+         {{- range $mount := $volume.mounts }}
+        - mountPath: {{ $mount.mountPath }}
+          name: {{ $volName }}
+          {{- if $mount.readOnly }}
+          readOnly: {{ $mount.readOnly }}
+          {{- end }}
+          {{- if $mount.subPath }}
+          subPath: {{ $mount.subPath }}
+          {{- end }}
+         {{- end }}
+        {{- end }}
+        {{- end }}
+        {{- with .volFromPVC }}
+        # Mount from PVC
+        {{- range $volName, $volume := . }}
+          {{- range $mount := $volume.mounts }}
+        - mountPath: {{ $mount.mountPath }}
+          name: {{ $volName }}
+          {{- if $mount.readOnly }}
+          readOnly: {{ $mount.readOnly }}
+          {{- end }}
+          {{- if $mount.subPath }}
+          subPath: {{ $mount.subPath }}
+          {{- end }}
+          {{- end }}
+        {{- end }}
+        {{- end }}
+      volumes:
+      {{- with .volFromConfigmap }}
+      # Volumes CM
+      {{- range $cmName, $items := . }}
+      - name: cm-{{ $cmName }}
+        configMap:
+          name: {{ $fullName }}-{{ $cmName }}
+          defaultMode: {{ if $context.Values.defaultModeConfigmap }}{{ $context.Values.defaultModeConfigmap }}{{ else }}0400{{ end }}
+        {{- with $items }}
+          items:
+          {{- range $id, $item := . }}
+          - key: {{ $item.subPath }}
+            path: {{ $item.subPath }}
+          {{- end }}
+        {{- end }}
+      {{- end }}
+      {{- end }}
+      {{- with .volFromSecret }}
+      # Volumes Secrets
+      {{- range $secName, $items := . }}
+      - name: secret-{{ $secName }}
+        secret:
+          secretName: {{ $fullName }}-{{ $secName }}
+          defaultMode: {{ if $context.Values.defaultModeSecret }}{{ $context.Values.defaultModeSecret }}{{ else }}0400{{ end }}
+        {{- with $items }}
+          items:
+          {{- range $id, $item := . }}
+          - key: {{ $item.subPath }}
+            path: {{ $item.subPath }}
+          {{- end }}
+        {{- end }}
+      {{- end }}
+      {{- end }}
+      {{- with .volFromCustom }}
+      # Volumes Custom
+      {{- range $volName, $volume := . }}
+      - name: {{ $volName }}
+        {{- toYaml $volume.volSpec | nindent 8 }}
+      {{- end }}
+      {{- end }}
+      {{- with .volFromPVC }}
+      # Volumes PVC
+      {{- $pvcName := printf "pvc-%s-%s" $fullName $app }}
+      {{- range $volName, $volume := . }}
+      {{- if $volume.pvcNameOverride }}
+        {{- $pvcName = $volume.pvcNameOverride }}
+      {{- else}}
+        {{- $pvcName = printf "pvc-%s-%s-%s" $fullName $app $volName }}
+      {{- end }}
+      - name: {{ $volName }}
+        persistentVolumeClaim:
+          claimName: {{ $pvcName }}
+      {{- end }}
+      {{- end }}
+      # End of Volumes
+      {{- end }}
+    {{- if or .affinity .nodeSelector .tolerations }}
+      ## Node Selectors
+      {{- with .affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 6 }}
+      {{- end }}
+    {{- end }}
+      {{- with .podSpec }}
+      ## podSpec
+        {{- toYaml . | nindent 6 }}
+      {{- end }}
+      {{- with $context.Values.hostAliases }}
+      ## shared hostAliases
+      hostAliases:
+        {{- toYaml . | nindent 6 }}
+      {{- end }}
+{{- if .service }}{{- if .service.enable }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $fullAppName }}
+  namespace: {{ $context.Release.Namespace }}
+  labels:
+    {{- $labels | nindent 4 }}
+    app: {{ $app }}
+spec:
+  ports:
+  {{- range $port, $name := .service.ports }}
+  - name: {{ $name }}
+    port: {{ $port }}
+    targetPort: {{ $port }}
+  {{- end }}
+  {{- if .service.port80target }}
+  - name: web80
+    port: 80
+    targetPort: {{ .service.port80target }}
+  {{- end }}
+  selector:
+    {{- $selectorLabels | nindent 4 }}
+    app: {{ $app }}
+{{- end }}{{- end }}
+ {{- end }}
+{{- end }}

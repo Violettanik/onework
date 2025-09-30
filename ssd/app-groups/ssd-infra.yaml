@@ -1,0 +1,443 @@
+# helm template ssd-infra package/conf/helm/application/ssd/ -n onework --output-dir out -f package/conf/helm/application/ssd/app-groups/ssd-infra.yaml -f package/conf/helm/application/ssd/app-groups/_secrets-ssd-infra.yaml
+# kubectl apply -f out/ssd/templates/secrets/ -n onework
+# helm upgrade --install ssd-infra package/conf/helm/application/ssd/ -n onework -f package/conf/helm/application/ssd/app-groups/ssd-infra.yaml
+
+createSecrets: false
+envName: dev
+fullnameOverride: ssd
+defaultModeSecret: 0444
+defaultModeConfigmap: 0444
+logbackConfig:
+  create: true
+#imagePullSecrets:
+#  - name: __docker_image_pull_secret__
+
+### Core
+ssdCommon:
+  enable: true
+  envInConfigmap:
+    #SSD_APPLICATION_CONFIG_SERVER_INTERNAL_URL: 'http://ssd-cloud-config:8888?fail-fast=true&max-attempts=10'
+    SSD_APPLICATION_CONFIG_SERVER_INTERNAL_URL: 'http://ssd-cloud-config:8888'
+    SSD_APPLICATION_CONFIG_SERVER_REQUEST_PROPS: ?fail-fast=true&max-attempts=100&initial-interval=1000
+    SSD_APPLICATION_DISCOVERY_SERVER_ROOT_INTERNAL_URL: http://ssd-cloud-discovery:8761
+    #SSD_ROLE_MANAGER_KC_URL: __kc_root_url__/auth/
+    SSD_ROLE_MANAGER_KC_URL: https://keycloak.voda.ru:8443/
+    #SSD_ROLE_MANAGER_KC_REALM: __kc_target_realm__
+    SSD_ROLE_MANAGER_KC_REALM: Works
+    #SSD_ROLE_MANAGER_ROOT_URL: http://ssd-role-manager:28885
+    SSD_ROLE_MANAGER_ROOT_URL: http://ssd-role-manager.onework2.svc.cluster.local:28885
+    SSD_CORE_DATA_ROOT_URL: http://ssd-core-data:28888
+    SSD_APPLICATION_NAME_SUFFIX: ""
+    #SSD_DB_HOST: __ssd_db_ip__
+    SSD_DB_HOST: 192.168.139.80
+    #SSD_DB_NAME: __ssd_db_name__
+    SSD_DB_NAME: ssd
+    #SSD_DB_PORT: __ssd_db_port__
+    SSD_DB_PORT: 5432
+    SSD_DEPLOYMENT_PROFILE: k8s
+    SSD_DEPLOYMENT_ENV: dev
+    SSD_IAM_PROXY_CONTEXT_PREFIX: /ssd
+    #SSD_IAM_PROXY_EXTERNAL_ROOT: https://onework.voda.ru/ssd
+    #SSD_IAM_PROXY_EXTERNAL_ROOT: https://__ingress_external_url__/ssd
+    SSD_IAM_PROXY_EXTERNAL_ROOT: https://onework.voda.ru/ssd
+    SSD_IAM_PROXY_INTERNAL_ROOT: http://ssd-proxy-ws:3001/ssd
+    #SSD_KAFKA_GATEWAY_KAFKA_SERVERS: __ssd_kafka_servers__ # ssd-internal-message-broker:9092
+    SSD_KAFKA_GATEWAY_KAFKA_SERVERS: 192.168.139.80:9092
+    #SSD_KAFKA_INTERNAL_TOPIC_RM_EVENTS: ssd-internal-rm-events-__kafka_topics_suffix__
+    #SSD_KAFKA_INTERNAL_TOPIC_RM_INPUT: ssd-internal-rm-input-__kafka_topics_suffix__
+    #SSD_KAFKA_INTERNAL_TOPIC_SA_INPUT: ssd-internal-sa-input-__kafka_topics_suffix__
+    #SSD_KAFKA_INTERNAL_TOPIC_SA_OUTPUT: ssd-internal-sa-output-__kafka_topics_suffix__
+    #SSD_KAFKA_EVENTS_TOPIC: ssd-events-__kafka_topics_suffix__
+    SSD_KAFKA_INTERNAL_TOPIC_RM_EVENTS: ssd-internal-rm-events
+    SSD_KAFKA_INTERNAL_TOPIC_RM_INPUT: ssd-internal-rm-input
+    SSD_KAFKA_INTERNAL_TOPIC_SA_INPUT: ssd-internal-sa-input
+    SSD_KAFKA_INTERNAL_TOPIC_SA_OUTPUT: ssd-internal-sa-output
+    SSD_KAFKA_EVENTS_TOPIC: ssd-events
+
+    #SSD_DB_CORE_SERVICES_POOL_SIZE: __SSD_DB_CORE_SERVICES_POOL_SIZE__
+    SSD_DB_CORE_SERVICES_POOL_SIZE: 5
+    #ONEWORK_SESSION_COOKIE_NAME: __ONEWORK_SESSION_COOKIE_NAME__
+    ONEWORK_SESSION_COOKIE_NAME: ONEWORK_SESSION
+    SSD_CLOUD_ADMIN_CLIENT_ROOT_URL: http://ssd-proxy-ws:3001/ssd/ssd-cloud-admin
+    SSD_AUTH_JWT_VERIFIACTION_ENABLED: 'true'
+    SSD_AUTH_JWT_TARGET_ALG: 'RS256'
+    SSD_AUTH_JWT_EXPIRATION_VERIFIACTION_ENABLED: 'false'
+    SSD_AUTH_JWT_PUBLIC_KEY: 'MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAwrl95kAoREGFC5FC7dEyEsMzpduGLPevWW5A1M3TOlUSBZ8tVP3YJE/YQuB6el51k1stj5poUaHan26/8zW1gCbiZUnZjPQyjecqYbWPp4dKQQgmzN8tB4oWKAqFv5xg5EA+hOhs+upNxIwWjchQWSopBN3+cN2Y5DwFeeWRGzMmxQIwmUgVIPiVpIgUwyVSGoICer/nOONJletszhA9PzXY1en5tjXHNT78M68WYvR0YR0wO2sNl/FaT/WwTxPxcI/amdCEn+2g+cUiUgvzCah/l10h/czx9HuNPvZD6N059BGFNVyJWOL40VpAHQ1ABx4i0U6FVCy/w8nmSSPuWQIDAQAB'
+    #SSD_LOGS_PROFILE:  '__SSD_LOGS_PROFILE__' # формат вывода сообщений в логи: default - человекочитаемые записи, platform - форматировано в виде JSON
+    SSD_LOGS_PROFILE:  default
+    SSD_LOGS_ROOT: /var/log/ssd-v2
+    SSD_SECURITY_ROLES_RESOLVING_MODE: HEADER # STORAGE in case of non-Keycloak environment
+    SSD_SECURITY_PRIVILEGES_RESOLVING_MODE: HEADER # STORAGE in case of non-Keycloak environment
+
+ssdCloudAdmin:
+  enable: true
+  image:
+    #pullPolicy: IfNotPresent
+    pullPolicy: Always
+    #repository: __image_registry_prefix__/ssd-cloud-admin
+    repository: 192.168.139.80:5000/ssd/ssd-cloud-admin
+    #tag: __image_tag_ssd_cloud_admin__
+    tag: 1.13.0
+  initContainers: []
+  env:
+    SSD_CLOUD_ADMIN_CONTEXT_PREFIX: /ssd/ssd-cloud-admin
+    SPRING_CONFIG_EXTRA_FILES: '/var/run/secrets/common.yml,/var/run/secrets/db.yml'
+    SPRING_PROFILES_ACTIVE: k8s
+  envFromConfigmap:
+    - common
+  volFromSecret:
+    common-db-props:
+      - path: /var/run/secrets/db.yml
+        subPath: secret-props.yml
+        readOnly: true
+    common-props:
+      - path: /var/run/secrets/common.yml
+        subPath: secret-props.yml
+        readOnly: true
+  volFromCustom:
+    logs-dir:
+      mounts:
+        - mountPath: /var/log/ssd-v2/
+      volSpec:
+        emptyDir:
+          sizeLimit: 100Mi
+    web-server-tmp:
+      mounts:
+        - mountPath: /tmp
+      volSpec:
+        emptyDir:
+          sizeLimit: 100Mi
+  securityContext:
+#    readOnlyRootFilesystem: true
+    readOnlyRootFilesystem: false
+    runAsUser: 10001
+    runAsGroup: 10001
+    runAsNonRoot: true
+    privileged: false
+    allowPrivilegeEscalation: false
+    capabilities:
+      add: []
+      drop:
+        - all
+    seccompProfile:
+      type: RuntimeDefault
+  startupProbe:
+    httpGet:
+      path: /health
+      port: 58080   # было 8888, должно быть 58080
+    initialDelaySeconds: 60
+    periodSeconds: 15
+    failureThreshold: 60
+  livenessProbe:
+    httpGet:
+      path: /health
+      port: 58080
+    initialDelaySeconds: 30
+    periodSeconds: 10
+    failureThreshold: 10
+  readinessProbe:
+    httpGet:
+      path: /health
+      port: 58080
+    initialDelaySeconds: 10
+    periodSeconds: 10
+    failureThreshold: 5
+  ## Resources
+  resources:
+    requests:
+      cpu: 500m
+      memory: 750Mi
+    limits:
+      cpu: 500m
+      memory: 750Mi
+  service:
+    enable: true
+    ports:
+      58080: http
+
+ssdCloudConfig:
+  enable: true
+  image:
+    #pullPolicy: IfNotPresent
+    pullPolicy: Always
+    #repository: __image_registry_prefix__/ssd-cloud-config
+    repository: 192.168.139.80:5000/ssd/ssd-cloud-config
+    #tag: __image_tag_ssd_cloud_config__
+    tag: 1.13.0
+  env:
+    SSD_CLOUD_CONFIG_NATIVE_SEARCH_PATH: file:/usr/local/ssd-v2/config-server/profiles/k8s
+    SSD_CLOUD_CONFIG_PROFILES: native
+    SSD_CLOUD_CONFIG_GIT_SOURCE_URL: ""
+    SSD_CLOUD_CONFIG_GIT_SOURCE_BRANCH: ""
+    SSD_CLOUD_CONFIG_GIT_SOURCE_USERNAME: ""
+    SPRING_CONFIG_EXTRA_FILES: '/var/run/secrets/common.yml,/var/run/secrets/db.yml'
+  masterSystemIntegration: false # true if there is a master system for project creation and roles managing
+  envFromConfigmap:
+    - common
+  volFromSecret:
+    common-db-props:
+      - path: /var/run/secrets/db.yml
+        subPath: secret-props.yml
+        readOnly: true
+    common-props:
+      - path: /var/run/secrets/common.yml
+        subPath: secret-props.yml
+        readOnly: true
+  ## Resources
+  volFromCustom:
+    logs-dir:
+      mounts:
+        - mountPath: /var/log/ssd-v2/
+      volSpec:
+        emptyDir:
+          sizeLimit: 100Mi
+    web-server-tmp:
+      mounts:
+        - mountPath: /tmp
+      volSpec:
+        emptyDir:
+          sizeLimit: 100Mi
+
+  securityContext:
+#    readOnlyRootFilesystem: true
+    readOnlyRootFilesystem: false
+    runAsUser: 10001
+    runAsGroup: 10001
+    runAsNonRoot: true
+    privileged: false
+    allowPrivilegeEscalation: false
+    capabilities:
+      add: []
+      drop:
+        - all
+    seccompProfile:
+      type: RuntimeDefault
+  podSpec:
+    securityContext:
+      fsGroup: 10001
+      seccompProfile:
+        type: RuntimeDefault
+  resources:
+    requests:
+      cpu: 250m
+      memory: 750Mi
+    limits:
+      cpu: 250m
+      memory: 750Mi
+  startupProbe:
+    httpGet:
+      path: /actuator/health
+      port: 8888
+    initialDelaySeconds: 30
+    periodSeconds: 10
+    failureThreshold: 30
+  livenessProbe:
+    httpGet:
+      path: /actuator/health
+      port: 8888
+    initialDelaySeconds: 30
+    periodSeconds: 10
+    failureThreshold: 10
+  readinessProbe:
+    httpGet:
+      path: /actuator/health
+      port: 8888
+    initialDelaySeconds: 10
+    periodSeconds: 10
+    failureThreshold: 5
+  ingress:
+    enable: false # enable for debug purpose only
+# NGINX INGRESS
+#    annotations:
+#      nginx.ingress.kubernetes.io/rewrite-target: /$1
+#    className: nginx
+#    hosts:
+#    - host: __ingress_external_url__
+#      paths:
+#      - path: /ssd-cloud-config/(.*)
+#        pathType: Prefix
+#        port: 8888
+# HAPROXY INGRESS
+#    annotations:
+#      kubernetes.io/ingress.class: haproxy
+#    hosts:
+#    - host: cloud-config.__ingress_external_url__
+#      paths:
+#      - path: /
+#        pathType: Prefix
+
+
+ssdTransactionManager:
+  enable: true
+  image:
+    #pullPolicy: IfNotPresent
+    pullPolicy: Always
+    #repository: __image_registry_prefix__/ssd-transaction-manager
+    repository: 192.168.139.80:5000/ssd/ssd-transaction-manager
+    #tag: __image_tag_ssd_tm__
+    tag: 1.13.0
+  env:
+    SSD_TM_ENABLE_STARTUP_SYNC: "false"
+    SSD_DB_LIQUIBASE_SCHEMA: "ssd"
+    SSD_TM_CRON_COMPLETED: "0 */5 * * * ?"
+    SSD_TM_CRON_DUMP: "0 */3 * * * ?"
+    SPRING_CONFIG_EXTRA_FILES: '/var/run/secrets/common.yml,/var/run/secrets/db.yml'
+    SSD_APP_DEFAULT_HEAP_LIMIT_MB: 1300
+    #SSD_DB_LIQUIBASE_CHANGELOGFILE: 'file:///tmp/lb/database-change-log.xml' - в случае переопределения скриптов Liquibase при использовании Postgres выше 11 версии
+  #  volFromConfigmap:
+  #    lb-override:
+  #      - path: /tmp/lb/database-change-log.xml
+  #        subPath: database-change-log.xml
+  #      - path: /tmp/lb/lb-ssd-db-02.sql
+  #        subPath: lb-ssd-db-02.sql
+  #      - path: /tmp/lb/lb-ssd-db-03.sql
+  #        subPath: lb-ssd-db-03.sql
+  #      - path: /tmp/lb/lb-ssd-db-04.sql
+  #        subPath: lb-ssd-db-04.sql
+  #      - path: /tmp/lb/lb-ssd-db-05.sql
+  #        subPath: lb-ssd-db-05.sql
+  #      - path: /tmp/lb/lb-ssd-db-06.sql
+  #        subPath: lb-ssd-db-06.sql
+  #      - path: /tmp/lb/lb-ssd-db-07.sql
+  #        subPath: lb-ssd-db-07.sql
+  #      - path: /tmp/lb/lb-ssd-db-08.sql
+  #        subPath: lb-ssd-db-08.sql
+  #      - path: /tmp/lb/lb-ssd-db-09.sql
+  #        subPath: lb-ssd-db-09.sql
+  #      - path: /tmp/lb/lb-ssd-db-10.sql
+  #        subPath: lb-ssd-db-10.sql
+  #      - path: /tmp/lb/lb-ssd-db-11.sql
+  #        subPath: lb-ssd-db-11.sql
+  #      - path: /tmp/lb/lb-ssd-db-12.sql
+  #        subPath: lb-ssd-db-12.sql
+  #      - path: /tmp/lb/lb-ssd-db-13.sql
+  #        subPath: lb-ssd-db-13.sql
+  #      - path: /tmp/lb/lb-ssd-db-14.sql
+  #        subPath: lb-ssd-db-14.sql
+  #      - path: /tmp/lb/lb-ssd-db-15.sql
+  #        subPath: lb-ssd-db-15.sql
+  #      - path: /tmp/lb/lb-ssd-db-16.sql
+  #        subPath: lb-ssd-db-16.sql
+  #      - path: /tmp/lb/lb-ssd-db-17.sql
+  #        subPath: lb-ssd-db-17.sql
+  #      - path: /tmp/lb/lb-ssd-db-18.sql
+  #        subPath: lb-ssd-db-18.sql
+  #      - path: /tmp/lb/lb-ssd-db-19.sql
+  #        subPath: lb-ssd-db-19.sql
+  #      - path: /tmp/lb/lb-ssd-db-20.sql
+  #        subPath: lb-ssd-db-20.sql
+  #      - path: /tmp/lb/lb-ssd-db-21.sql
+  #        subPath: lb-ssd-db-21.sql
+  #      - path: /tmp/lb/lb-ssd-db-22.sql
+  #        subPath: lb-ssd-db-22.sql
+  #      - path: /tmp/lb/lb-ssd-db-23.sql
+  #        subPath: lb-ssd-db-23.sql
+  #      - path: /tmp/lb/lb-ssd-db-24.sql
+  #        subPath: lb-ssd-db-24.sql
+  #      - path: /tmp/lb/lb-ssd-db-25.sql
+  #        subPath: lb-ssd-db-25.sql
+  #      - path: /tmp/lb/lb-ssd-db-26.sql
+  #        subPath: lb-ssd-db-26.sql
+  #      - path: /tmp/lb/lb-ssd-db-27.sql
+  #        subPath: lb-ssd-db-27.sql
+  #      - path: /tmp/lb/lb-ssd-db-28.sql
+  #        subPath: lb-ssd-db-28.sql
+  #      - path: /tmp/lb/lb-ssd-db-29.sql
+  #        subPath: lb-ssd-db-29.sql
+  #      - path: /tmp/lb/lb-ssd-db-30.sql
+  #        subPath: lb-ssd-db-30.sql
+  #      - path: /tmp/lb/lb-ssd-db-31.sql
+  #        subPath: lb-ssd-db-31.sql
+  #      - path: /tmp/lb/lb-ssd-db-32.sql
+  #        subPath: lb-ssd-db-32.sql
+  #      - path: /tmp/lb/lb-ssd-db-33.sql
+  #        subPath: lb-ssd-db-33.sql
+  #      - path: /tmp/lb/lb-ssd-db-34.sql
+  #        subPath: lb-ssd-db-34.sql
+  #      - path: /tmp/lb/lb-ssd-db-35.sql
+  #        subPath: lb-ssd-db-35.sql
+  #      - path: /tmp/lb/lb-ssd-db-36.sql
+  #        subPath: lb-ssd-db-36.sql
+  #      - path: /tmp/lb/lb-ssd-db-37.sql
+  #        subPath: lb-ssd-db-37.sql
+  #      - path: /tmp/lb/lb-ssd-db-38.sql
+  #        subPath: lb-ssd-db-38.sql
+  #      - path: /tmp/lb/lb-ssd-db-39.sql
+  #        subPath: lb-ssd-db-39.sql
+  #      - path: /tmp/lb/lb-ssd-db-40.sql
+  #        subPath: lb-ssd-db-40.sql
+  #      - path: /tmp/lb/lb-ssd-db-41.sql
+  #        subPath: lb-ssd-db-41.sql
+  #      - path: /tmp/lb/lb-ssd-db-42.sql
+  #        subPath: lb-ssd-db-42.sql
+  #      - path: /tmp/lb/lb-ssd-db-43.sql
+  #        subPath: lb-ssd-db-43.sql
+  #      - path: /tmp/lb/lb-ssd-db-44.sql
+  #        subPath: lb-ssd-db-44.sql
+  #      - path: /tmp/lb/lb-ssd-db-45.sql
+  #        subPath: lb-ssd-db-45.sql
+  #      - path: /tmp/lb/lb-ssd-db-46.sql
+  #        subPath: lb-ssd-db-46.sql
+  #      - path: /tmp/lb/lb-ssd-db-47.sql
+  #        subPath: lb-ssd-db-47.sql
+  #      - path: /tmp/lb/lb-ssd-db-48.sql
+  #        subPath: lb-ssd-db-48.sql
+  #      - path: /tmp/lb/lb-ssd-db-49.sql
+  #        subPath: lb-ssd-db-49.sql
+  envFromConfigmap:
+    - common
+  volFromSecret:
+    common-db-props:
+      - path: /var/run/secrets/db.yml
+        subPath: secret-props.yml
+        readOnly: true
+    common-props:
+      - path: /var/run/secrets/common.yml
+        subPath: secret-props.yml
+        readOnly: true
+  volFromCustom:
+    logs-dir:
+      mounts:
+        - mountPath: /var/log/ssd-v2/
+      volSpec:
+        emptyDir:
+          sizeLimit: 100Mi
+    web-server-tmp:
+      mounts:
+        - mountPath: /tmp
+      volSpec:
+        emptyDir:
+          sizeLimit: 100Mi
+  securityContext:
+#    readOnlyRootFilesystem: true
+    readOnlyRootFilesystem: false
+    runAsUser: 10001
+    runAsGroup: 10001
+    runAsNonRoot: true
+    privileged: false
+    allowPrivilegeEscalation: false
+    capabilities:
+      add: []
+      drop:
+        - all
+    seccompProfile:
+      type: RuntimeDefault
+  podSpec:
+    securityContext:
+      fsGroup: 10001
+      seccompProfile:
+        type: RuntimeDefault
+  ## Resources
+  resources:
+    requests:
+      cpu: 500m
+      memory: 750Mi
+    limits:
+      cpu: 1
+      memory: 1500Mi
+  service:
+    enable: true
+    ports:
+      28887: http
+
+

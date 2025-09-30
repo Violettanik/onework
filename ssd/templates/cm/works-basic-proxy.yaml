@@ -1,0 +1,303 @@
+{{- $context := . }}
+{{- $fullName := include "ssd.fullname" . }}
+{{- $labels := include "ssd.labels" . }}
+{{- $selectorLabels := include "ssd.selectorLabels" . }}
+{{- with .Values.worksBasicProxy }}
+ {{- if .enable }}
+ {{- $app := .appName }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $fullName }}-{{ $app }}
+  namespace: {{ $context.Release.Namespace }}
+  labels:
+    {{- $selectorLabels | nindent 4 }}
+data:
+  process_basic.lua: |-
+    -- Rewrites an `Authorization: Basic b64(username_stub:<offline_token>) header to suitable cookies
+
+    local log = ngx.log
+    local ERR = ngx.ERR
+
+    local http = require('resty.http')
+    local json = require('cjson')
+
+    local function startsWith(string, target_prefix)
+        return string:find(target_prefix) == 1
+    end
+
+    local function isBasic(s)
+        return startsWith(s, "Basic ")
+    end
+
+    local function isEmpty(s)
+        return s == nil or s == ''
+    end
+
+    local function split_string(inputstr, sep)
+        if sep == nil then
+            sep = "%s"
+        end
+        local t = {}
+        for str in string.gmatch(inputstr, "([^" .. sep .. "]+)") do
+            table.insert(t, str)
+        end
+        return t
+    end
+
+    local function getPasswordFromBasic(str)
+        local splitted = split_string(str, ':')
+        return splitted[2]
+    end
+
+    local function exit_with_code(resp_code, content)
+        ngx.status = resp_code
+        ngx.header.content_type = 'application/json';
+        ngx.say(json.encode({ ['message'] = content }))
+        ngx.exit(resp_code)
+    end
+
+    local function post_request(http_client, uri, body, headers)
+        local res, err = http_client:request_uri(uri, {
+            method = 'POST',
+            body = body,
+            ssl_verify = false,
+            headers = headers
+        })
+        if not res then
+            exit_with_code(ngx.HTTP_INTERNAL_SERVER_ERROR, string.format("Request to [%s] failed: %s", uri, err))
+        end
+        return res
+    end
+
+    local authorization_header = ngx.var.http_authorization
+
+    if isEmpty(authorization_header) then
+        return
+    end
+
+    if not isBasic(authorization_header) then
+        return
+    end
+
+    -- Stripping out the 'Basic ' prefix from the 'Authorization' header.
+    local basic_base64 = string.sub(authorization_header, 7)
+    if isEmpty(basic_base64) then
+        log(ERR, "Empty basic auth - authorization=", authorization_header)
+        exit_with_code(ngx.HTTP_UNAUTHORIZED, 'Empty basic was sent in the request!')
+    end
+
+    -- Decoding the base64-encoded string so that we get 'user:pass'.
+    local basic_plain = ngx.decode_base64(basic_base64)
+    if isEmpty(basic_plain) then
+        log(ERR, "Couldn't decode base64 - basic_base64=", basic_base64)
+        exit_with_code(ngx.HTTP_UNAUTHORIZED, 'Unable to decode basic content!')
+    end
+
+    -- Extract 'pass' from 'user:pass' (i.e, performs a string splitting and then gets the second chunk).
+    local jwtToken = getPasswordFromBasic(basic_plain)
+    if isEmpty(jwtToken) then
+        log(ERR, "Couldn't extract password from basic auth - basic=", basic_plain)
+        exit_with_code(ngx.HTTP_UNAUTHORIZED, 'Unable to extract password from basic content!')
+    end
+
+    local function request_iam_proxy_cookies(http_client, offline_token)
+        local headers = { ['Content-Type'] = 'application/x-www-form-urlencoded' }
+        local cookie_request_body = string.format('token=%s', offline_token)
+        local tokens_response = post_request(http_client, 'https://iam.control-customer.dev.pd15.digitalgov.mtp/mobile/restore-session/', cookie_request_body, headers)
+        if tokens_response.status ~= ngx.HTTP_OK then
+            exit_with_code(ngx.HTTP_INTERNAL_SERVER_ERROR, 'Unable retrieving security cookie [' .. tokens_response.status .. ']: ' .. tokens_response.body)
+        end
+        return tokens_response.headers["Set-Cookie"]
+    end
+
+    local function append_to_cookies(current_cookies, new_cookie)
+        local result_cookie
+        if not current_cookies then
+            result_cookie = new_cookie
+        else
+            result_cookie = current_cookies .. '; ' .. new_cookie
+        end
+        return result_cookie
+    end
+
+    local platform_cookies = request_iam_proxy_cookies(http.new(), jwtToken)
+    if (type(platform_cookies) == 'string') then
+        platform_cookies = {
+            [0] = platform_cookies
+        }
+    end
+    local session_cookie_for_proxy
+    for _, cookie in pairs(platform_cookies) do
+        for _, cookie_attribute in pairs(split_string(cookie, ';')) do
+            if startsWith(cookie_attribute, 'PLATFORM_SESSION') then
+                session_cookie_for_proxy = append_to_cookies(session_cookie_for_proxy, cookie_attribute)
+            end
+        end
+    end
+    ngx.req.set_header("Cookie", append_to_cookies(ngx.req.get_headers()["Cookie"], session_cookie_for_proxy))
+  process_dpm_token.lua: |-
+    -- Rewrites an DPM specific `token` header to suitable cookies
+
+    local http = require('resty.http')
+    local json = require('cjson')
+
+    local function startsWith(string, target_prefix)
+        return string:find(target_prefix) == 1
+    end
+
+    local function isEmpty(s)
+        return s == nil or s == ''
+    end
+
+    local function split_string(inputstr, sep)
+        if sep == nil then
+            sep = "%s"
+        end
+        local t = {}
+        for str in string.gmatch(inputstr, "([^" .. sep .. "]+)") do
+            table.insert(t, str)
+        end
+        return t
+    end
+
+    local function exit_with_code(resp_code, content)
+        ngx.status = resp_code
+        ngx.header.content_type = 'application/json';
+        ngx.say(json.encode({ ['message'] = content }))
+        ngx.exit(resp_code)
+    end
+
+    local function post_request(http_client, uri, body, headers)
+        local res, err = http_client:request_uri(uri, {
+            method = 'POST',
+            body = body,
+            ssl_verify = false,
+            headers = headers
+        })
+        if not res then
+            exit_with_code(ngx.HTTP_INTERNAL_SERVER_ERROR, string.format("Request to [%s] failed: %s", uri, err))
+        end
+        return res
+    end
+
+    local function request_iam_proxy_cookies(http_client, offline_token)
+        local headers = { ['Content-Type'] = 'application/x-www-form-urlencoded' }
+        local cookie_request_body = string.format('token=%s', offline_token)
+        local tokens_response = post_request(http_client, 'https://iam.control-customer.dev.pd15.digitalgov.mtp/mobile/restore-session/', cookie_request_body, headers)
+        if tokens_response.status ~= ngx.HTTP_OK then
+            exit_with_code(ngx.HTTP_INTERNAL_SERVER_ERROR, 'Unable retrieving security cookie [' .. tokens_response.status .. ']: ' .. tokens_response.body)
+        end
+        return tokens_response.headers["Set-Cookie"]
+    end
+
+    local function append_to_cookies(current_cookies, new_cookie)
+        local result_cookie
+        if not current_cookies then
+            result_cookie = new_cookie
+        else
+            result_cookie = current_cookies .. '; ' .. new_cookie
+        end
+        return result_cookie
+    end
+
+    local jwtToken = ngx.var.http_token
+
+    if isEmpty(jwtToken) then
+        return
+    end
+
+    ngx.req.set_header("login", "")
+    ngx.req.set_header("token", "")
+
+    local platform_cookies = request_iam_proxy_cookies(http.new(), jwtToken)
+    if (type(platform_cookies) == 'string') then
+        platform_cookies = {
+            [0] = platform_cookies
+        }
+    end
+    local session_cookie_for_proxy
+    for _, cookie in pairs(platform_cookies) do
+        for _, cookie_attribute in pairs(split_string(cookie, ';')) do
+            if startsWith(cookie_attribute, 'PLATFORM_SESSION') then
+                session_cookie_for_proxy = append_to_cookies(session_cookie_for_proxy, cookie_attribute)
+            end
+        end
+    end
+    ngx.req.set_header("Cookie", append_to_cookies(ngx.req.get_headers()["Cookie"], session_cookie_for_proxy))
+
+  nginx.conf: |-
+    worker_processes auto;
+    user        root;
+
+    error_log  /var/log/ssd-v2/ssd-proxy-ws/error.log notice;
+    pid        /usr/local/openresty/nginx/nginx.pid;
+
+    events {
+      worker_connections  1024;
+    }
+
+    http {
+        include       /usr/local/openresty/nginx/conf/mime.types;
+        default_type  application/octet-stream;
+
+        log_format  main  '$remote_addr - $remote_user [$time_local] [$request_id] "$request" '
+                          '$status $body_bytes_sent "$http_referer" '
+                          '"$http_user_agent" "$http_x_forwarded_for"';
+
+        sendfile     on;
+        keepalive_timeout  65;
+
+        large_client_header_buffers 4 256k;
+        resolver local=on valid=60s;
+
+        server {
+            listen       80;
+            access_log   /var/log/ssd-v2/ssd-proxy-ws/access.log main;
+            port_in_redirect off;
+
+            location /ssd-basic/tools/nexus-cd/ {
+                proxy_buffer_size  16k;
+                proxy_buffers   4 16k;
+                proxy_busy_buffers_size  16k;
+                client_max_body_size {{ .routes.ssdProxyTarget.maxBodySize }};
+                access_by_lua_file  /usr/local/openresty/nginx/scripts/process_basic.lua;
+                proxy_ssl_name {{ .routes.ssdProxyTarget.domain }};
+                proxy_ssl_server_name on;
+                proxy_pass https://{{ .routes.ssdProxyTarget.domain }}/{{ .routes.ssdProxyTarget.rootPrefix }}/tools/nexus-cd/;
+            }
+
+            location /ssd-basic/tools/jenkins-ci/ {
+                proxy_buffer_size  16k;
+                proxy_buffers   4 16k;
+                proxy_busy_buffers_size  16k;
+                access_by_lua_file  /usr/local/openresty/nginx/scripts/process_basic.lua;
+                proxy_ssl_name {{ .routes.ssdProxyTarget.domain }};
+                proxy_ssl_server_name on;
+                proxy_pass https://{{ .routes.ssdProxyTarget.domain }}/{{ .routes.ssdProxyTarget.rootPrefix }}/tools/jenkins-ci/;
+            }
+
+            location /ssd-basic/tools/jenkins-cd/ {
+                proxy_buffer_size  16k;
+                proxy_buffers   4 16k;
+                proxy_busy_buffers_size  16k;
+                access_by_lua_file  /usr/local/openresty/nginx/scripts/process_basic.lua;
+                proxy_ssl_name {{ .routes.ssdProxyTarget.domain }};
+                proxy_ssl_server_name on;
+                proxy_pass https://{{ .routes.ssdProxyTarget.domain }}/{{ .routes.ssdProxyTarget.rootPrefix }}/tools/jenkins-cd/;
+            }
+
+            location /ssd-basic/tools/dpm/api/ {
+                proxy_buffer_size  16k;
+                proxy_buffers   4 16k;
+                proxy_busy_buffers_size  16k;
+                access_by_lua_file  /usr/local/openresty/nginx/scripts/process_dpm_token.lua;
+                proxy_ssl_name {{ .routes.ssdProxyTarget.domain }};
+                proxy_ssl_server_name on;
+                proxy_pass https://{{ .routes.ssdProxyTarget.domain }}/{{ .routes.ssdProxyTarget.rootPrefix }}/tools/dpm/api/;
+            }
+        }
+    }
+ {{- end }}
+{{- end }}

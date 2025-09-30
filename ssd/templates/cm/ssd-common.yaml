@@ -1,0 +1,25 @@
+{{- $context := . }}
+{{- $fullName := include "ssd.fullname" . }}
+{{- $labels := include "ssd.labels" . }}
+{{- $selectorLabels := include "ssd.selectorLabels" . }}
+{{- with .Values.ssdCommon }}
+ {{- if .enable }}
+ {{- $app := .appName }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $fullName }}-{{ $app }}
+  namespace: {{ $context.Release.Namespace }}
+  labels:
+    {{- $labels | nindent 4 }}
+data:
+  {{- range $key, $value := .envInConfigmap }}
+  {{ $key }}: {{ $value | quote }}
+  {{- end }}
+  {{- with .fileInConfigmap }}
+  # .fileInConfigmap
+    {{- toYaml . | nindent 2 }}
+  {{- end }}
+ {{- end }}
+{{- end }}

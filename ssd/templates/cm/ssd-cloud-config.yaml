@@ -1,0 +1,1447 @@
+{{- $context := . }}
+{{- $fullName := include "ssd.fullname" . }}
+{{- $labels := include "ssd.labels" . }}
+{{- $selectorLabels := include "ssd.selectorLabels" . }}
+{{- with .Values.ssdCloudConfig }}
+ {{- if .enable }}
+ {{- $app := .appName }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $fullName }}-{{ $app }}
+  namespace: {{ $context.Release.Namespace }}
+  labels:
+    {{- $labels | nindent 4 }}
+data:
+  application.yaml: |
+    app:
+      speedup.silent: ${SSD_DB_SPEEDUP_LOGS_IS_SILENT:true}
+      log-config:
+        enable-platform-log-entries: ${SSD_LOGS_PROPAGATE_STD_FIELDS:true}
+        tracked-headers:
+          rqUid: x-request-id
+          traceId: x-b3-traceid
+          xRealIp: x-real-ip
+          xForwardedFor: x-forwarded-for
+      https:
+        self-signed-ignored: ${SSD_IGNORE_SELF_SIGNED_CERT:true}
+      cloud-host: '${SSD_CLOUD_SERVICE_HOST}'
+      adapters-host: '${SSD_SERVICE_HOST}'
+      db-server: '${SSD_DB_HOST}'
+      db-url: jdbc:postgresql://${app.db-server}:${SSD_DB_PORT}/${SSD_DB_NAME}
+      db-user: '${props-override.db.username:${SSD_DB_USER:}}'
+      db-passwd: '${props-override.db.password:${SSD_DB_PASSWORD:}}'
+      transaction-manager:
+        name: 'ssd-transaction-manager${SSD_APPLICATION_NAME_SUFFIX}'
+      keywords:
+        full-name: ${spring.application.name}${app.keywords.name-suffix:}
+        script-placeholders:
+          parent-id: '$parentId$'
+          parent-key: '$parentKey$'
+          project-key: '$projKey$'
+          bundle-key: '$bundleKey$'
+        project-properties:
+          bundle: 'bundle'
+          name: 'name'
+          uri: 'uri'
+          updated-at: 'updated_at'
+          updated-by: 'updated_by'
+          created-at: 'created_at'
+          created-by: 'created_by'
+        adapter-common-properties:
+          endpoint: 'endpoint'
+      kafka:
+        partitions: 1
+        replicas: 1
+        embedded-user-name: 'kafka-pvssd-topic'
+        sasl-mechanism: ${props-override.kafka-sasl.mechanism:${SSD_KAFKA_SASL_MECHANISM:PLAIN}}
+        sasl-jaas-config: ${props-override.kafka-sasl.config:${SSD_KAFKA_SASL_CONFIG:}}
+        ssl-config:
+          security-protocol: ${SSD_KAFKA_SECURITY_PROTOCOL:PLAINTEXT}
+          enabled-protocols: ${SSD_KAFKA_SSL_SECURITY_ENABLED_PROTOCOLS:TLSv1.2,TLSv1.3}
+          ssl-protocol: ${SSD_KAFKA_SSL_SECURITY_PROTOCOL:TLSv1.3}
+          trust-store-location: ${props-override.kafka-ssl.trust-store-location:${SSD_KAFKA_SSL_TRUSTSTORE_LOCATION:}}
+          trust-store-password: ${props-override.kafka-ssl.trust-store-password:${SSD_KAFKA_SSL_TRUSTSTORE_PASSWORD:}}
+          trust-store-type: ${SSD_KAFKA_SSL_TRUSTSTORE_TYPE:JKS}
+          key-store-location: ${props-override.kafka-ssl.key-store-location:${SSD_KAFKA_SSL_KEYSTORE_LOCATION:}}
+          key-store-password: ${props-override.kafka-ssl.key-store-password:${SSD_KAFKA_SSL_KEYSTORE_PASSWORD:}}
+          key-store-type: ${SSD_KAFKA_SSL_KEYSTORE_TYPE:JKS}
+      keys:
+        privileges-header-name: 'WS-Privileges'
+        service-jwt-token: 'Bearer ${props-override.interservice-jwt-token:${SSD_JWT_SERVICE_TOKEN:}}'
+      security:
+        ssd-frontal-proxy:
+          external-root: '${SSD_IAM_PROXY_EXTERNAL_ROOT}'
+          internal-root: '${SSD_IAM_PROXY_INTERNAL_ROOT}'
+        auth:
+          session-cookie-name: '${ONEWORK_SESSION_COOKIE_NAME:ONEWORK_IAM_SESSION}'
+          jwt-verification:
+            enabled: '${SSD_AUTH_JWT_VERIFIACTION_ENABLED:true}'
+            expiration-verification: '${SSD_AUTH_JWT_EXPIRATION_VERIFIACTION_ENABLED:false}'
+            publicKey: '${SSD_AUTH_JWT_PUBLIC_KEY:}'
+            targetAlg: '${SSD_AUTH_JWT_TARGET_ALG:RS256}'
+            leeway: '${SSD_AUTH_JWT_VERIFICATION_LEEWAY:0}'
+      url:
+        ssd-root: '${app.security.ssd-frontal-proxy.external-root}'
+    spring:
+      main:
+        banner-mode: off
+        cloud-platform: 'kubernetes'
+        allow-circular-references: true
+        allow-bean-definition-overriding: true
+      mvc.pathmatch.matching-strategy: ant_path_matcher
+      cloud:
+        bus:
+          enabled: ${SSD_CLOUD_BUS_ENABLED:true}
+          destination: ${SSD_CLOUD_BUS_TOPIC:ssd-cloud-bus}
+      kafka:
+        security:
+          protocol: ${SSD_KAFKA_SECURITY_PROTOCOL:PLAINTEXT}
+        sasl:
+          mechanism: ${props-override.kafka-sasl.mechanism:${SSD_KAFKA_SASL_MECHANISM:PLAIN}}
+          jaas:
+            config: ${props-override.kafka-sasl.config:${SSD_KAFKA_SASL_CONFIG:}}
+        ssl:
+          enabled:
+            protocols: ${SSD_KAFKA_SSL_SECURITY_ENABLED_PROTOCOLS:TLSv1.2,TLSv1.3}
+          protocol: ${SSD_KAFKA_SSL_SECURITY_PROTOCOL:TLSv1.3}
+          trust-store-location: ${props-override.kafka-ssl.trust-store-location:${SSD_KAFKA_SSL_TRUSTSTORE_LOCATION:}}
+          trust-store-password: ${props-override.kafka-ssl.trust-store-password:${SSD_KAFKA_SSL_TRUSTSTORE_PASSWORD:}}
+          trust-store-type: ${SSD_KAFKA_SSL_TRUSTSTORE_TYPE:JKS}
+          key-store-location: ${props-override.kafka-ssl.key-store-location:${SSD_KAFKA_SSL_KEYSTORE_LOCATION:}}
+          key-store-password: ${props-override.kafka-ssl.key-store-password:${SSD_KAFKA_SSL_KEYSTORE_PASSWORD:}}
+          key-store-type: ${SSD_KAFKA_SSL_KEYSTORE_TYPE:JKS}
+        bootstrap-servers: '${SSD_KAFKA_GATEWAY_KAFKA_SERVERS}'
+        streams.application-id: '${app.keywords.full-name}-${spring.profiles.active}-${SSD_DEPLOYMENT_ENV:dev}'
+        consumer:
+          group-id: 'ssd-${app.keywords.full-name}-${spring.profiles.active}-${SSD_DEPLOYMENT_ENV:dev}'
+          client-id: 'ssd-${app.keywords.full-name}-${spring.profiles.active}-${SSD_DEPLOYMENT_ENV:dev}'
+      boot.admin.client:
+        username: '${props-override.boot-admin.username:${SSD_CLOUD_ADMIN_USER:}}'
+        password: '${props-override.boot-admin.password:${SSD_CLOUD_ADMIN_PASS:}}'
+        period: 30000
+        connect-timeout: 30
+        url: ${SSD_CLOUD_ADMIN_CLIENT_ROOT_URL:http://ssd-cloud-admin:58080/ssd-cloud-admin}
+        enabled: ${SSD_SPRING_BOOT_ADMIN_CLIENT_ENABLE:true}
+        instance:
+          prefer-ip: true
+          name: ${app.keywords.full-name}
+      datasource:
+        url: ${app.db-url}
+        driver-class-name: org.postgresql.Driver
+        username: ${app.db-user}
+        password: ${app.db-passwd}
+        hikari:
+          auto-commit: true
+          maximum-pool-size: ${SSD_DB_CORE_SERVICES_POOL_SIZE:5} # maximum pool size
+          minimum-idle: 1 # minimum number of idle connections maintained by HikariCP in a connection pool
+          connection-timeout: 30000 # maximum number of milliseconds that a client will wait for a connection
+          max-lifetime: 5000  # maximum lifetime in milliseconds of a connection in the pool after it is closed.
+          idle-timeout: 25000 # maximum idle time for connection
+      jpa:
+        open-in-view: false
+        database-platform: org.hibernate.dialect.PostgreSQLDialect
+        generate-ddl: false
+        show-sql: false
+        properties.hibernate:
+          enable_lazy_load_no_trans: true
+          dialect: org.hibernate.dialect.PostgreSQLDialect
+          jdbc.time_zone: UTC
+          temp.use_jdbc_metadata_defaults: false
+          ddl-auto: none
+          show-sql: false
+          use_sql_comments: false
+          format_sql: false
+          event:
+            merge:
+              entity_copy_observer: allow
+
+    logging:
+      config: ${SSD_APPLICATION_CONFIG_SERVER_INTERNAL_URL:http://ssd-cloud-config:8888}/${spring.application.name}/${spring.profiles.active}-${SSD_LOGS_PROFILE:default}/default/logback.xml
+      level.root: ${SSD_LOGS_ROOT_LEVEL:info}
+      file.path: ${SSD_LOGS_ROOT}/${spring.application.name}
+      pattern.file: '%d{yyyy-MM-dd HH:mm:ss} %-5level [%-7.7thread] %logger{20} - %msg%n'
+      logback.rollingpolicy:
+        max-file-size: ${SSD_CLOUD_CONFIG_LOG_MAX_SIZE:100MB}
+        max-history: ${SSD_CLOUD_CONFIG_LOG_MAX_HISTORY:10}
+      level:
+        com:
+          netflix:
+            discovery: OFF
+        org:
+          apache:
+            http:
+              client:
+                protocol: 
+                  ResponseProcessCookies: ${LOGGING_LEVEL_ORG_APACHE_HTTP:ERROR}
+            kafka:
+              clients:
+                admin: ${LOGGING_LEVEL_ORG_APACHE_KAFKA:ERROR}
+              common:
+                metrics: ${LOGGING_LEVEL_ORG_APACHE_KAFKA:ERROR}
+                utils: ${LOGGING_LEVEL_ORG_APACHE_KAFKA:ERROR}
+          springframework:
+            kafka: ${LOGGING_LEVEL_ORG_SPRINGFRAMEWORK_KAFKA:INFO}
+            cloud:
+              netflix:
+                eureka: OFF
+              config:
+                client: OFF
+            security:
+              access: OFF
+    eureka:
+      client:
+        enabled: false
+    server:
+      maxHttpHeaderSize: ${SSD_SERVICES_MAX_HEADER_SIZE:65536}
+      max-http-request-header-size: ${SSD_SERVICES_MAX_HEADER_SIZE:65536}
+      servlet.session.timeout: ${SSD_SERVICES_SESSION_TIMEOUT:600}
+      reactive.session.timeout: ${SSD_SERVICES_SESSION_TIMEOUT:600}
+    management:
+      metrics:
+        tags:
+          pod: '${HOSTNAME:${app.keywords.full-name}}'
+      endpoints.web.exposure:
+        include: '${SSD_SERVICES_ACTUATOR_CAP_INCLUDE:*}'
+        exclude: '${SSD_SERVICES_ACTUATOR_CAP_EXCLUDE:refresh}'
+      endpoint.logfile.external-file: ${logging.file.path}/spring.log
+  ssd-adapter-dpm-k8s.yml: |
+    app:
+      dpm:
+        base-url: ${SSD_SA_DPM_BASE_URL}
+        auth-base-url: ${SSD_SA_DPM_AUTH_BASE_URL:http://auth-dpm-stub-root}
+        version: ${SSD_DPM_VERSION:v2}
+        login: ${SSD_SA_DPM_LOGIN}
+        token: ${props-override.adapters.dpm.token:${SSD_SA_DPM_TOKEN:}}
+        jwt-token:
+          url: ${props-override.adapters.dpm.oidc-token.url:${SSD_SA_DPM_RECEIVE_TOKEN_URL:}}
+          username: ${props-override.adapters.dpm.oidc-token.user:${SSD_SA_DPM_RECEIVE_TOKEN_USERNAME:}}
+          password: ${props-override.adapters.dpm.oidc-token.pass:${SSD_SA_DPM_RECEIVE_TOKEN_PASSWORD:}}
+          client-id: ${props-override.adapters.dpm.oidc-token.client-id:${SSD_DPM_RECEIVE_TOKEN_CLIENT_ID:}}
+          client-secret: ${props-override.adapters.dpm.oidc-token.client-secret:${SSD_DPM_RECEIVE_TOKEN_CLIENT_SECRET:}}
+      kafka.topics.internal:
+        sa-input: ${SSD_KAFKA_INTERNAL_TOPIC_SA_INPUT}
+        sa-output: ${SSD_KAFKA_INTERNAL_TOPIC_SA_OUTPUT}
+        role-manager-events: ${SSD_KAFKA_INTERNAL_TOPIC_RM_EVENTS}
+        role-manager-input: ${SSD_KAFKA_INTERNAL_TOPIC_RM_INPUT}
+      keys:
+        tool-key: 'dpm'    
+      security:
+        auth:
+          unsecured-resources:
+            GET:
+              - /actuator/health/**
+              - /health
+              - /metrics/prometheus
+            POST:
+              - /actuator/loggers/**
+    server.port: 28808
+  ssd-adapter-fose-k8s.yml: |
+    app:
+      fose:
+        base-url: ${SSD_SA_FOSE_BASE_URL}
+        endpoint-url: ${SSD_SA_FOSE_ENDPOINT_URL}
+        token: ${props-override.adapters.fose.token:${SSD_SA_FOSE_TOKEN:}}
+        nesting-level: ${SSD_SA_FOSE_NESTING_LEVEL}
+        permissions:
+          admin: 'view_portfolio,view_vulnerability,policy_violation_analysis,vulnerability_analysis,bom_upload,project_creation_upload,policy_management,portfolio_management'
+          writer: 'view_portfolio,view_vulnerability,policy_violation_analysis,vulnerability_analysis,bom_upload,project_creation_upload'
+          executer: 'view_portfolio,view_vulnerability,policy_violation_analysis,vulnerability_analysis,bom_upload,project_creation_upload'
+          reader: 'view_portfolio,view_vulnerability'
+      kafka.topics.internal:
+        sa-input: ${SSD_KAFKA_INTERNAL_TOPIC_SA_INPUT}
+        sa-output: ${SSD_KAFKA_INTERNAL_TOPIC_SA_OUTPUT}
+        role-manager-events: ${SSD_KAFKA_INTERNAL_TOPIC_RM_EVENTS}
+        role-manager-input: ${SSD_KAFKA_INTERNAL_TOPIC_RM_INPUT}
+      keys:
+        tool-key: 'dpt'
+      security:
+        auth:
+          unsecured-resources:
+            GET:
+              - /actuator/health/**
+              - /health
+              - /metrics/prometheus
+            POST:
+              - /actuator/loggers/**
+    server.port: 28807
+  ssd-adapter-gitlab-k8s.yml: |
+    app:
+      gitlab:
+        base-url: ${SSD_SA_GITLAB_URL}
+        access-token: ${props-override.adapters.gitlab.token:${SSD_SA_GITLAB_ACCESS_TOKEN:}}
+        maintainer: 'maintainer'
+        noone: 'noone'
+        roleMapping:
+          - "a:Maintaner:40"
+          - "w:Developer:30"
+          - "x:Reporter:20"
+          - "r:Guest:10"
+        user-config:
+          name:
+            should-normalize: '${SSD_SA_GITLAB_NAME_NORMALIZE:false}'
+            target-attribute: '${SSD_SA_GITLAB_NAME_ATTRIBUTE:USERNAME}'
+          username:
+            should-normalize: '${SSD_SA_GITLAB_USERNAME_NORMALIZE:false}'
+            target-attribute: '${SSD_SA_GITLAB_USERNAME_ATTRIBUTE:USERNAME}'
+      kafka.topics.internal:
+        sa-input: ${SSD_KAFKA_INTERNAL_TOPIC_SA_INPUT}
+        sa-output: ${SSD_KAFKA_INTERNAL_TOPIC_SA_OUTPUT}
+        role-manager-events: ${SSD_KAFKA_INTERNAL_TOPIC_RM_EVENTS}
+        role-manager-input: ${SSD_KAFKA_INTERNAL_TOPIC_RM_INPUT}
+      keys:
+        tool-key: 'gitlab'
+        repo-key: 'subproject'
+        repo-endpoint-key: 'endpoint-subproject'
+      security:
+        auth:
+          unsecured-resources:
+            GET:
+              - /actuator/health/**
+              - /health
+              - /metrics/prometheus
+            POST:
+              - /actuator/loggers/**
+    server.port: 28800
+  ssd-adapter-jenkins-k8s.yml: |
+    app:
+      keywords.name-suffix: '-${JENKINS_TYPE}'
+      jenkins:
+        base-url: ${SSD_SA_JENKINS_URL}
+        auth:
+          privileges:
+            header-name: Authorization
+            header-value: Bearer ${props-override.adapters.jenkins.jwt-token:${SSD_SA_JENKINS_JWT_TOKEN:}}
+          preemptive:
+            login: ${props-override.adapters.jenkins.login:${SSD_SA_JENKINS_LOGIN:}}
+            token: ${props-override.adapters.jenkins.access-token:${SSD_SA_JENKINS_ACCESS_TOKEN:}}
+        scripts:
+          roles-creation-script-path: ${SSD_SA_JENKINS_SCRIPTS_ROLE_CREATION:classpath:templates/createRole.groovy.template}
+          project-folder-creation-script-path: ${SSD_SA_JENKINS_SCRIPTS_FOLDER_CREATION:classpath:templates/createProjectFolder.groovy.template}
+      kafka.topics.internal:
+        sa-input: ${SSD_KAFKA_INTERNAL_TOPIC_SA_INPUT}
+        sa-output: ${SSD_KAFKA_INTERNAL_TOPIC_SA_OUTPUT}
+        role-manager-events: ${SSD_KAFKA_INTERNAL_TOPIC_RM_EVENTS}
+        role-manager-input: ${SSD_KAFKA_INTERNAL_TOPIC_RM_INPUT}
+      keys:
+        tool-key: 'j${JENKINS_TYPE}'
+      security:
+        auth:
+          unsecured-resources:
+            GET:
+              - /actuator/health/**
+              - /health
+              - /metrics/prometheus
+            POST:
+              - /actuator/loggers/**
+    server.port: ${SSD_SERVER_PORT:28801}
+  ssd-adapter-nexus-k8s.yml: |
+    app:
+      keywords.name-suffix: '-${NEXUS_TYPE}'
+      nexus:
+        base-url: '${SSD_SA_NEXUS_URL}'
+        login: '${props-override.adapters.nexus.login:${SSD_SA_NEXUS_LOGIN:}}'
+        password: '${props-override.adapters.nexus.password:${SSD_SA_NEXUS_PASSWORD:}}'
+      kafka.topics.internal:
+        sa-input: ${SSD_KAFKA_INTERNAL_TOPIC_SA_INPUT}
+        sa-output: ${SSD_KAFKA_INTERNAL_TOPIC_SA_OUTPUT}
+        role-manager-events: ${SSD_KAFKA_INTERNAL_TOPIC_RM_EVENTS}
+        role-manager-input: ${SSD_KAFKA_INTERNAL_TOPIC_RM_INPUT}
+      keys:
+        tool-key: 'n${NEXUS_TYPE}'
+        group-blob-store: ${SSD_SA_NEXUS_ENABLE_GROUP_BLOBS:false}
+        repoWritePolicyConfig: '${SSD_SA_NEXUS_REPO_WRITE_POLICY_CONFIG:{}}'
+      security:
+        auth:
+          unsecured-resources:
+            GET:
+              - /actuator/health/**
+              - /health
+              - /metrics/prometheus
+            POST:
+              - /actuator/loggers/**
+    server.port: ${SSD_SERVER_PORT:28805}
+  ssd-adapter-sonar-k8s.yml: |
+    app:
+      sonar:
+        base-url: ${SSD_SA_SONAR_URL}
+        base-project-url: ${SSD_SA_SONAR_PROJECT_URL}
+        login: ${props-override.adapters.sonar.login:${SSD_SA_SONAR_LOGIN:}}
+        password: ${props-override.adapters.sonar.password:${SSD_SA_SONAR_PASSWORD:}}
+        nesting-level: ${SSD_SA_SONAR_NESTING_LEVEL:4}
+        base-permission-model-path: ${SSD_SA_SONAR_PERMISSION_MODEL_PATH:classpath:base-permission-model.json}
+        webhook:
+          jenkins-ci:
+            name: ${SSD_SA_SONAR_WEBHOOK_JCI_NAME:Jenkins-ci}
+            secret: ${SSD_SA_SONAR_WEBHOOK_JCI_SECRET:0}
+            url: ${SSD_SA_SONAR_WEBHOOK_JCI_URL:http://jenkins-ci.jenkins.svc.cluster.local/jenkins-ci/sonarqube-webhook/}
+      kafka.topics.internal:
+        sa-input: ${SSD_KAFKA_INTERNAL_TOPIC_SA_INPUT}
+        sa-output: ${SSD_KAFKA_INTERNAL_TOPIC_SA_OUTPUT}
+        role-manager-events: ${SSD_KAFKA_INTERNAL_TOPIC_RM_EVENTS}
+        role-manager-input: ${SSD_KAFKA_INTERNAL_TOPIC_RM_INPUT}
+      keys:
+        tool-key: 'snr'
+      security:
+        auth:
+          unsecured-resources:
+            GET:
+              - /actuator/health/**
+              - /health
+              - /metrics/prometheus
+            POST:
+              - /actuator/loggers/**
+    server.port: 28804
+  ssd-adapter-view-k8s.yml: |
+    app:
+      view:
+        endpoint-url: ${SSD_ADAPTER_VIEW_ENDPOINT_URL}
+      kafka.topics.internal:
+        sa-input: ${SSD_KAFKA_INTERNAL_TOPIC_SA_INPUT}
+        sa-output: ${SSD_KAFKA_INTERNAL_TOPIC_SA_OUTPUT}
+        role-manager-events: ${SSD_KAFKA_INTERNAL_TOPIC_RM_EVENTS}
+        role-manager-input: ${SSD_KAFKA_INTERNAL_TOPIC_RM_INPUT}
+      keys:
+        tool-key: 'view'
+      security:
+        auth:
+          unsecured-resources:
+            GET:
+              - /actuator/health/**
+              - /health
+              - /metrics/prometheus
+            POST:
+              - /actuator/loggers/**
+    server.port: 28809
+  ssd-adapter-tasktracker-k8s.yml: |
+    app:
+      tasktracker:
+        root-url: ${SSD_TASKTRACKER_API_ROOT_URL:}
+        default-space-type: ${SSD_TASKTRACKER_DEFAULT_SPACE_TYPE:Run}
+        jwt-token:
+          url: ${props-override.adapters.tt.oidc-token.url:${SSD_TASKTRACKER_RECEIVE_TOKEN_URL:}}
+          username: ${props-override.adapters.tt.oidc-token.user:${SSD_TASKTRACKER_RECEIVE_TOKEN_USERNAME:}}
+          password: ${props-override.adapters.tt.oidc-token.pass:${SSD_TASKTRACKER_RECEIVE_TOKEN_PASSWORD:}}
+          client-id: ${props-override.adapters.tt.oidc-token.client-id:${SSD_TASKTRACKER_RECEIVE_TOKEN_CLIENT_ID:}}
+          client-secret: ${props-override.adapters.tt.oidc-token.client-secret:${SSD_TASKTRACKER_RECEIVE_TOKEN_CLIENT_SECRET:}}
+        roles-mapping:
+          a: ${SSD_TASKTRACKER_ROLE_MAPPING_ADMIN:SPACE_CONFIGURATOR}
+          w: ${SSD_TASKTRACKER_ROLE_MAPPING_WRITER:SPACE_CONTRIBUTOR}
+          x: ${SSD_TASKTRACKER_ROLE_MAPPING_EXECUTOR:SCRUM_MASTER}
+          r: ${SSD_TASKTRACKER_ROLE_MAPPING_READER:SPACE_READER}
+      kafka.topics.internal:
+        sa-input: ${SSD_KAFKA_INTERNAL_TOPIC_SA_INPUT}
+        sa-output: ${SSD_KAFKA_INTERNAL_TOPIC_SA_OUTPUT}
+        role-manager-events: ${SSD_KAFKA_INTERNAL_TOPIC_RM_EVENTS}
+        role-manager-input: ${SSD_KAFKA_INTERNAL_TOPIC_RM_INPUT}
+      keys:
+        tool-key: '${SSD_TASKTRACKER_SA_KEY:sber-track}'
+      security:
+        auth:
+          unsecured-resources:
+            GET:
+              - /actuator/health/**
+              - /health
+              - /metrics/prometheus
+            POST:
+              - /actuator/loggers/**
+    server.port: ${SSD_SERVER_PORT:28816}
+  ssd-adapter-load-k8s.yml: |
+    app:
+      load:
+        debug: true
+        base-url: ${SSD_ADAPTER_LOAD_ROOT_URL}
+        user-url: ${SSD_ADAPTER_LOAD_ROOT_URL}
+        group-uri: '/back/groups/'
+        user-uri: '/back/users/'
+        auth-enabled: false
+        access-token: '${props-override.adapters.load.access-token:${SSD_SA_LOAD_ACCESS_TOKEN:}}'
+        user-name: ''
+        password: ''
+        health-check: '/back/health'
+        password-filler: 'password'
+        project-level: 2
+        rightsMap:
+          a: 'superuser'
+          w: 'user'
+          x: 'user'
+          r: 'user'
+      keys:
+        tool-key: 'loa'
+        tool-jwt-token: '${props-override.adapters.load.jwt-token:${SSD_SA_LOAD_JWT_TOKEN:}}'
+      kafka.topics.internal:
+        sa-input: ${SSD_KAFKA_INTERNAL_TOPIC_SA_INPUT}
+        sa-output: ${SSD_KAFKA_INTERNAL_TOPIC_SA_OUTPUT}
+        role-manager-events: ${SSD_KAFKA_INTERNAL_TOPIC_RM_EVENTS}
+        role-manager-input: ${SSD_KAFKA_INTERNAL_TOPIC_RM_INPUT}
+      security:
+        auth:
+          unsecured-resources:
+            GET:
+              - /actuator/health/**
+              - /health
+              - /metrics/prometheus
+            POST:
+              - /actuator/loggers/**
+    server.port: 28811
+  ssd-adapter-jazz-k8s.yml: |
+    app:
+      jazz:
+        root-url: ${SSD_SA_JAZZ_API_ROOT_URL}
+        secret-key: ${props-override.adapters.jazz.secret-key:${SSD_SA_JAZZ_SECRET_KEY:}}
+      kafka.topics.internal:
+        sa-input: ${SSD_KAFKA_INTERNAL_TOPIC_SA_INPUT}
+        sa-output: ${SSD_KAFKA_INTERNAL_TOPIC_SA_OUTPUT}
+        role-manager-events: ${SSD_KAFKA_INTERNAL_TOPIC_RM_EVENTS}
+        role-manager-input: ${SSD_KAFKA_INTERNAL_TOPIC_RM_INPUT}
+      security:
+        auth:
+          unsecured-resources:
+            GET:
+              - /actuator/health/**
+              - /health
+              - /metrics/prometheus
+            POST:
+              - /actuator/loggers/**
+      keys:
+        tool-key: 'jazz'
+    server.port: 28812
+  ssd-adapter-source-control-k8s.yml: |
+    app:
+      keywords.name-suffix: '-${SC_KEY:sc}'
+      source-control:
+        root-url: ${SSD_SA_SOURCE_CONTROL_API_ROOT_URL}
+        method-access-key: "${props-override.adapters.sc.secret-key:${SSD_SA_SOURCE_CONTROL_SECRET_KEY:}}"
+        links-prefix:
+          original: "${SSD_SA_SOURCE_CONTROL_LINKS_OVERRIDE_ORIGINAL_PREFIX:}"
+          target: "${SSD_SA_SOURCE_CONTROL_LINKS_OVERRIDE_TARGET_PREFIX:}"
+      kafka.topics.internal:
+        sa-input: ${SSD_KAFKA_INTERNAL_TOPIC_SA_INPUT}
+        sa-output: ${SSD_KAFKA_INTERNAL_TOPIC_SA_OUTPUT}
+        role-manager-events: ${SSD_KAFKA_INTERNAL_TOPIC_RM_EVENTS}
+        role-manager-input: ${SSD_KAFKA_INTERNAL_TOPIC_RM_INPUT}
+      keys:
+        tool-key: '${SC_KEY:sc}'
+      security:
+        auth:
+          unsecured-resources:
+            GET:
+              - /actuator/health/**
+              - /health
+              - /metrics/prometheus
+            POST:
+              - /actuator/loggers/**    
+    server.port: 28813
+  ssd-adapter-source-control-v1-k8s.yml: |
+    app:
+      keywords.name-suffix: '-${SC_KEY:sc}'
+      source-control:
+        root-url: ${SSD_SA_SOURCE_CONTROL_API_ROOT_URL}
+        method-access-key: "${props-override.adapters.sc.secret-key:${SSD_SA_SOURCE_CONTROL_SECRET_KEY:}}"
+        links-prefix:
+          original: "${SSD_SA_SOURCE_CONTROL_LINKS_OVERRIDE_ORIGINAL_PREFIX:}"
+          target: "${SSD_SA_SOURCE_CONTROL_LINKS_OVERRIDE_TARGET_PREFIX:}"
+      kafka.topics.internal:
+        sa-input: ${SSD_KAFKA_INTERNAL_TOPIC_SA_INPUT}
+        sa-output: ${SSD_KAFKA_INTERNAL_TOPIC_SA_OUTPUT}
+        role-manager-events: ${SSD_KAFKA_INTERNAL_TOPIC_RM_EVENTS}
+        role-manager-input: ${SSD_KAFKA_INTERNAL_TOPIC_RM_INPUT}
+      keys:
+        tool-key: '${SC_KEY:sc}'
+      security:
+        auth:
+          unsecured-resources:
+            GET:
+              - /actuator/health/**
+              - /health
+              - /metrics/prometheus
+            POST:
+              - /actuator/loggers/**    
+    server.port: 28813
+  ssd-adapter-source-control-v2-k8s.yml: |
+    app:
+      keywords.name-suffix: '-${SC_KEY:sc}'
+      source-control-v2:
+        rules-mapping:
+          a: ${SSD_SA_SOURCE_CONTROL_ROLE_MAPPING_RULE_A:owner}
+          w: ${SSD_SA_SOURCE_CONTROL_ROLE_MAPPING_RULE_W:writer}
+          x: ${SSD_SA_SOURCE_CONTROL_ROLE_MAPPING_RULE_X:manager}
+          r: ${SSD_SA_SOURCE_CONTROL_ROLE_MAPPING_RULE_R:reader}
+        root-url: ${SSD_SA_SOURCE_CONTROL_API_ROOT_URL}
+        access-token: "${props-override.adapters.sc.secret-key:${SSD_SA_SOURCE_CONTROL_SECRET_KEY:}}"
+        links-prefix:
+          original: "${SSD_SA_SOURCE_CONTROL_LINKS_OVERRIDE_ORIGINAL_PREFIX:}"
+          target: "${SSD_SA_SOURCE_CONTROL_LINKS_OVERRIDE_TARGET_PREFIX:}"
+      kafka.topics.internal:
+        sa-input: ${SSD_KAFKA_INTERNAL_TOPIC_SA_INPUT}
+        sa-output: ${SSD_KAFKA_INTERNAL_TOPIC_SA_OUTPUT}
+        role-manager-events: ${SSD_KAFKA_INTERNAL_TOPIC_RM_EVENTS}
+        role-manager-input: ${SSD_KAFKA_INTERNAL_TOPIC_RM_INPUT}
+      keys:
+        tool-key: '${SC_KEY:sc}'
+      security:
+        auth:
+          unsecured-resources:
+            GET:
+              - /actuator/health/**
+              - /health
+              - /metrics/prometheus
+            POST:
+              - /actuator/loggers/**    
+    server.port: 28813
+  ssd-adapter-dataspace-k8s.yml: |
+    app:
+      data-space:
+        context-url: ${SSD_ADAPTER_DATASPACE_CONTEXT_URL}
+      kafka.topics.internal:
+        sa-input: ${SSD_KAFKA_INTERNAL_TOPIC_SA_INPUT}
+        sa-output: ${SSD_KAFKA_INTERNAL_TOPIC_SA_OUTPUT}
+        role-manager-events: ${SSD_KAFKA_INTERNAL_TOPIC_RM_EVENTS}
+        role-manager-input: ${SSD_KAFKA_INTERNAL_TOPIC_RM_INPUT}
+      keys:
+        tool-key: 'dslab'
+      security:
+        auth:
+          unsecured-resources:
+            GET:
+              - /actuator/health/**
+              - /health
+              - /metrics/prometheus
+            POST:
+              - /actuator/loggers/**
+    server.port: 28814
+  ssd-adapter-architect-k8s.yml: |
+    app:
+      pv-architect:
+        root-url: ${SSD_PV_ARCHITECT_API_ROOT_URL:}
+        login: "${props-override.adapters.architect.login:}"
+        password: "${props-override.adapters.architect.password:}"
+      kafka.topics.internal:
+        sa-input: ${SSD_KAFKA_INTERNAL_TOPIC_SA_INPUT}
+        sa-output: ${SSD_KAFKA_INTERNAL_TOPIC_SA_OUTPUT}
+        role-manager-events: ${SSD_KAFKA_INTERNAL_TOPIC_RM_EVENTS}
+        role-manager-input: ${SSD_KAFKA_INTERNAL_TOPIC_RM_INPUT}
+      keys:
+        tool-key: 'arch'
+      security:
+        auth:
+          unsecured-resources:
+            GET:
+              - /actuator/health/**
+              - /health
+              - /metrics/prometheus
+            POST:
+              - /actuator/loggers/**
+    server.port: ${SSD_SERVER_PORT:28815}
+  ssd-adapter-stub-k8s.yml: |
+    app:
+      keywords:
+        name-suffix: '-${SSD_SA_STUB_TOOL_KEY}'
+      kafka.topics.internal:
+        sa-input: ${SSD_KAFKA_INTERNAL_TOPIC_SA_INPUT}
+        sa-output: ${SSD_KAFKA_INTERNAL_TOPIC_SA_OUTPUT}
+        role-manager-events: ${SSD_KAFKA_INTERNAL_TOPIC_RM_EVENTS}
+        role-manager-input: ${SSD_KAFKA_INTERNAL_TOPIC_RM_INPUT}
+      keys:
+        tool-key: '${SSD_SA_STUB_TOOL_KEY}'
+        response-send-timeout-ms: ${SSD_SA_STUB_RESPONSE_TO_MS:2000}
+      security:
+        auth:
+          unsecured-resources:
+            GET:
+              - /actuator/health/**
+              - /health
+              - /metrics/prometheus
+            POST:
+              - /actuator/loggers/**
+    server.port: ${SSD_SERVER_PORT:28815}
+  ssd-adapter-tdm-k8s.yml: |
+    app:
+      tdm:
+        endpoint-url-prefix: ${SSD_SA_TDM_URL_PREFIX:https://works.domain.ru/ssd/tools/tdm}
+      kafka.topics.internal:
+        sa-input: ${SSD_KAFKA_INTERNAL_TOPIC_SA_INPUT}
+        sa-output: ${SSD_KAFKA_INTERNAL_TOPIC_SA_OUTPUT}
+        role-manager-events: ${SSD_KAFKA_INTERNAL_TOPIC_RM_EVENTS}
+        role-manager-input: ${SSD_KAFKA_INTERNAL_TOPIC_RM_INPUT}
+      keys:
+        tool-key: 'tdm'
+      security:
+        auth:
+          unsecured-resources:
+            GET:
+              - /actuator/health/**
+              - /health
+              - /metrics/prometheus
+            POST:
+              - /actuator/loggers/**
+    server.port: ${SSD_SERVER_PORT:28817}
+  ssd-adapter-testops-k8s.yml: |
+    app:
+      testops:
+        base-url: ${SSD_TESTOPS_API_URL}    
+        role-mapping: |
+          a: ${SSD_TESTOPS_ROLE_MAPPING_ADMIN:ROLE_ADMIN}
+          x: ${SSD_TESTOPS_ROLE_MAPPING_EXECUTOR:ROLE_USER}
+          w: ${SSD_TESTOPS_ROLE_MAPPING_WRITER:ROLE_USER}
+          r: ${SSD_TESTOPS_ROLE_MAPPING_READER:ROLE_GUEST}
+        
+        auth:
+          url: '${app.testops.base-url}/api/uaa/oauth/token'
+          user-token: ${props-override.adapters.testops.token:}
+    
+      kafka.topics.internal:
+        sa-input: ${SSD_KAFKA_INTERNAL_TOPIC_SA_INPUT}
+        sa-output: ${SSD_KAFKA_INTERNAL_TOPIC_SA_OUTPUT}
+        role-manager-events: ${SSD_KAFKA_INTERNAL_TOPIC_RM_EVENTS}
+        role-manager-input: ${SSD_KAFKA_INTERNAL_TOPIC_RM_INPUT}
+      keys:
+        tool-key: 'testops'
+    server.port: ${SSD_SERVER_PORT:28818}
+  ssd-cloud-admin-k8s.yml: |
+    spring:
+      boot:
+        admin:
+          context-path: ${SSD_CLOUD_ADMIN_CONTEXT_PREFIX:}
+      security:
+        user:
+          name: '${props-override.boot-admin.username:${SSD_CLOUD_ADMIN_USER:}}'
+          password: '${props-override.boot-admin.password:${SSD_CLOUD_ADMIN_PASS:}}'
+    app:
+      security:
+        user:
+          name: '${props-override.boot-admin.username:${SSD_CLOUD_ADMIN_USER:}}'
+          password: '${props-override.boot-admin.password:${SSD_CLOUD_ADMIN_PASS:}}'
+        auth:
+          enabled: ${SSD_AUTH_ENABLED:true}
+          user-id-resolving-mode: ${SSD_SECURITY_UID_RESOLVING_MODE:SUB}
+          role-resolving:
+            mode: ${SSD_SECURITY_ROLES_RESOLVING_MODE:HEADER}
+          privileges-resolving:
+            mode: ${SSD_SECURITY_PRIVILEGES_RESOLVING_MODE:HEADER}
+          unsecured-resources:
+            GET:
+              - /health
+              - /metrics/prometheus
+        ssd-frontal-proxy:
+          internal-root: '${SSD_IAM_PROXY_EXTERNAL_ROOT:http://ssd-proxy-ws:3001/ssd}'
+      url:
+        logout: '${SSD_CLOUD_ADMIN_LOGOUT_URL:${app.security.ssd-frontal-proxy.internal-root}/logout}'
+    server:
+      port: ${SSD_SERVER_PORT:58080}
+      servlet:
+        session:
+          cookie:
+            name: ${SSD_CLOUD_ADMIN_SESSION_COOKIE_NAME:ONEWORK_CL_ADM_SESSIONID}
+
+  ssd-core-data-k8s.yml: |
+    app:
+      transaction-manager:
+        client:
+          retry:
+            maxAttempts: ${SSD_TRANSACTION_MANAGER_CLIENT_RETRY_ATTEMPS:1}
+            timeoutMs: ${SSD_TRANSACTION_MANAGER_CLIENT_RETRY_TIMEOUT_MS:1000}
+            maxTimeoutMs: ${SSD_TRANSACTION_MANAGER_CLIENT_RETRY_MAX_TIMEOUT_MS:10000}
+            multiplier: ${SSD_TRANSACTION_MANAGER_CLIENT_RETRY_MULTIPLIER:2}
+            targetCodes: ${SSD_TRANSACTION_MANAGER_CLIENT_RETRY_CODES:503}
+      ssd-rm-root-url: ${SSD_ROLE_MANAGER_ROOT_URL}
+      ssd-rm:
+        root-url: ${SSD_ROLE_MANAGER_ROOT_URL}
+        urls:
+          project-init: ${SSD_ROLE_MANAGER_PROJECT_INIT_URL:}
+          users-sync: ${SSD_ROLE_MANAGER_USERS_SYNC_URL:}
+          get-user-data: ${SSD_ROLE_MANAGER_USER_DATA_SEARCH:http://ssd-role-manager:28885/v2/users/by-username}
+      algorithms:
+        uri-anchor-post-processing-required: ${SSD_CORE_DATA_ANCHOR_POST_PROCESSING_ENABLED:false}
+      kafka:
+        integrationEnabled: ${SSD_CORE_DATA_ENABLE_MASTER_SYSTEM_GATEWAY:false}
+        events:
+          producer.enabled: ${SSD_ENABLE_EVENT_PRODUCING:false}
+        topics:
+          ssd-events: ${SSD_KAFKA_EVENTS_TOPIC:ssd-events}
+          ssd-from-ssp-input: ${SSD_KAFKA_INTEGRATION_INPUT_TOPIC:ssd-pvssd}
+          ssp-from-ssd-output: ${SSD_KAFKA_INTEGRATION_OUTPUT_TOPIC:v2-message-from-product}
+          internal:
+            sa-input: ${SSD_KAFKA_INTERNAL_TOPIC_SA_INPUT}
+            sa-output: ${SSD_KAFKA_INTERNAL_TOPIC_SA_OUTPUT}
+          events:
+            k2: ${SSD_KAFKA_SSP_EVENTS_TOPIC_2:SSP_Events_K2}
+            k3: ${SSD_KAFKA_SSP_EVENTS_TOPIC_3:SSP_Events_K3}
+            k4: ${SSD_KAFKA_SSP_EVENTS_TOPIC_4:SSP_Events_K4}
+        gateway:
+          ssd:
+            owner-login-attribute-type: ${SSD_KAFKA_MASTER_INTEGRATION_OWNER_ATTRIBUTE_TYPE:USERNAME}
+            role-manager-urls:
+               user-process-url: '${SSD_ROLE_MANAGER_ROOT_URL:http://ssd-role-manager:28885}/v2/external/user_roles'
+               user-by-id-url: '${SSD_ROLE_MANAGER_ROOT_URL:http://ssd-role-manager:28885}/v2/external/user/{userId}/username'
+            integration-processors:
+               #gisupr: 'sber.platform.ssdp.coredata.kafka.BaseRequestProcessor'
+               pao: 'sber.platform.ssdp.coredata.kafka.PaoRequestProcessor'
+      external-adapters.list: keycloak
+      security:
+        auth:
+          enabled: true
+          user-id-resolving-mode: ${SSD_SECURITY_UID_RESOLVING_MODE:SUB}
+          role-resolving:
+            mode: ${SSD_SECURITY_ROLES_RESOLVING_MODE:HEADER}
+          privileges-resolving:
+            mode: ${SSD_SECURITY_PRIVILEGES_RESOLVING_MODE:HEADER}
+          unsecured-resources:
+            GET:
+              - /actuator/**
+              - /health
+              - /metrics/prometheus
+            POST:
+              - /actuator/loggers/**
+          system-roles-only-resources:
+            GET:
+              - /swagger-ui/**
+              - /v3/api-docs/**
+      swagger:
+        server-root-url: '${app.url.ssd-root}/ssd-core-data'
+
+    springdoc:
+      swagger-ui:
+        config-url: '${SSD_IAM_PROXY_CONTEXT_PREFIX:}/ssd-core-data/v3/api-docs/swagger-config'
+        url: '${SSD_IAM_PROXY_CONTEXT_PREFIX:}/ssd-core-data/v3/api-docs'
+
+    server.port: 28888
+  ssd-role-manager-k8s.yml: |
+    app:
+      users:
+        default-email-segment: ${SSD_ROLE_MANAGER_USERS_DEFAULT_EMAIL_SEGMENT:sigma}
+      transaction-manager:
+        client:
+          retry:
+            maxAttempts: ${SSD_TRANSACTION_MANAGER_CLIENT_RETRY_ATTEMPS:1}
+            timeoutMs: ${SSD_TRANSACTION_MANAGER_CLIENT_RETRY_TIMEOUT_MS:1000}
+            maxTimeoutMs: ${SSD_TRANSACTION_MANAGER_CLIENT_RETRY_MAX_TIMEOUT_MS:10000}
+            multiplier: ${SSD_TRANSACTION_MANAGER_CLIENT_RETRY_MULTIPLIER:2}
+            targetCodes: ${SSD_TRANSACTION_MANAGER_CLIENT_RETRY_CODES:503}
+      auth:
+        rules-storage: ${SSD_ROLE_MANAGER_RULE_STORAGE_TYPE:DB}
+      user-permission:
+        mode: ${SSD_ROLE_MANAGER_USER_PERMISSIONS_MODE:MAP}
+        ufs:
+          rootUrl: ${SSD_ROLE_MANAGER_UFS_API_ROOT:http://ufs.domain/rest/v2} # backward compat
+          privilegesUrl: ${SSD_ROLE_MANAGER_UFS_API_ROOT:http://localhost/rest/v2/privileges/get}
+          cache:
+            timeout: '${SSD_ROLE_MANAGER_UFS_CACHE_CLEANUP:5}'
+      global-role:
+        users-id-with-api-access: ${SSD_ROLE_MANAGER_GLOBAL_ROLE_USERS_ID_WITH_ACCESS:}
+      keycloak:
+        enabled: ${SSD_ROLE_MANAGER_ENABLE_KC_INTEGRATION:true}
+        url: ${SSD_ROLE_MANAGER_KC_URL}
+        realm: ${SSD_ROLE_MANAGER_KC_REALM}
+        username: ${props-override.keycloak.client:${SSD_ROLE_MANAGER_KC_USER:}}
+        clientId: ${props-override.keycloak.client:${SSD_ROLE_MANAGER_KC_USER:}}
+        secret: ${props-override.keycloak.secret:${SSD_ROLE_MANAGER_KC_SECRET:}}
+        visibility.attribute.key: ${SSD_ROLE_MANAGER_KC_VISIBILITY_ATTRIBUTE}
+        obsolete: ###  BACKWARD COMPATIBILITY WITH RELEASES BEFORE 1.6.1
+          mode: ${SSD_ROLE_MANAGER_KC_OBSOLETE_MODE:false} # true for Keycloak 4.8.3
+          mode.ssl-enabled: ${SSD_ROLE_MANAGER_KC_OBSOLETE_SSL_ENABLED:true}
+          mode.http-client: ${SSD_ROLE_MANAGER_KC_OBSOLETE_HTTP_CLIENT:SPRING}
+        obsolete-mode:
+          enabled: ${SSD_ROLE_MANAGER_KC_OBSOLETE_MODE:false}
+          ssl-enabled: ${SSD_ROLE_MANAGER_KC_OBSOLETE_SSL_ENABLED:true}
+          http-client: ${SSD_ROLE_MANAGER_KC_OBSOLETE_HTTP_CLIENT:NATIVE}
+        sync:
+          page-size: ${SSD_ROLE_MANAGER_KC_OBJECTS_PAGE_SIZE:100}
+        users:
+          skip-attribute-update: ${SSD_ROLE_MANAGER_USER_SKIP_ATTRIBUTES_UPDATE:false}
+          instant-parsing-pattern: ${SSD_ROLE_MANAGER_USER_INSTANT_PARSING_PATTERN:uuuuMMddHHmmssX}
+          password.reset:
+            link-lifespan-hours: ${SSD_PASSWORD_RESET_LIFESPAN_HOURS:24}
+            redirect-uri: '${SSD_PASSWORD_RESET_REDIRECT_URI:https://works.domain/ssd}'
+          email.verification:
+            link-lifespan-hours: ${SSD_EMAIL_VERFIFICATION_RESET_LIFESPAN_HOURS:24}
+            redirect-uri: '${SSD_EMAIL_VERFIFICATION_REDIRECT_URI:https://works.domain/ssd}'
+      role-sync:
+        base-role-model-path: '${SSD_ROLE_MANAGER_BASE_ROLE_MODEL_PATH:classpath:base-role-model-template.json}'
+        adapter:
+          groups-process-allowed: '${SSD_ROLE_MANAGER_GROUP_PROCESSING_TOOL_KEYS:nci,ncd,jci,jcd}'
+        keycloak:
+          cron: ${SSD_ROLE_MANAGER_KC_ROLE_SYNC_CRON:--}
+      ssd-iam-proxy:
+        api-url: '${SSD_IAM_PROXY_INTERNAL_ROOT}'
+      kafka:
+        events:
+          users:
+            required-attributes: '${SSD_ROLE_MANAGER_KC_USER_EVENT_ATTRIBUTES:external_id}' 
+          producer:
+            enabled: ${SSD_ENABLE_EVENT_PRODUCING:false}
+            issuer: "ssd-event-processor"
+        topics:
+          internal:
+            sa-input: ${SSD_KAFKA_INTERNAL_TOPIC_SA_INPUT}
+            sa-output: ${SSD_KAFKA_INTERNAL_TOPIC_SA_OUTPUT}
+            role-manager-input: ${SSD_KAFKA_INTERNAL_TOPIC_RM_INPUT}
+            role-manager-events: ${SSD_KAFKA_INTERNAL_TOPIC_RM_EVENTS}
+          ssd-events: ${SSD_KAFKA_EVENTS_TOPIC:ssd-events}
+      keys.tool-key: 'keycloak'
+      security:
+        auth:
+          enabled: true
+          user-id-resolving-mode: ${SSD_SECURITY_UID_RESOLVING_MODE:SUB}
+          role-resolving:
+            mode: ${SSD_SECURITY_ROLES_RESOLVING_MODE:HEADER}
+          privileges-resolving:
+            mode: ${SSD_SECURITY_PRIVILEGES_RESOLVING_MODE:HEADER}
+          unsecured-resources:
+            GET:
+              - /actuator/**
+              - /health
+              - /metrics/prometheus
+            POST:
+              - /actuator/loggers/**
+            PUT:
+              - /v2/users/password_reset
+          system-roles-only-resources:
+            GET:
+              - /swagger-ui/**
+              - /v3/api-docs/**
+      swagger:
+        server-root-url: '${app.url.ssd-root}/ssd-role-manager'
+      integration:
+        master-system:
+          enabled: ${SSD_RM_MASTER_SYSTEM_INTEGRATION_ENABLED:false}
+          user-project-assigning-attribute: ${SSD_RM_MASTER_SYSTEM_USER_ASSIGNING_ATTRIBUTE:EMAIL}
+        owner-login-attribute: ${SSD_RM_INTEGRATION_OWNERLOGIN_TYPE:USERNAME}
+    springdoc:
+      swagger-ui:
+        config-url: '${SSD_IAM_PROXY_CONTEXT_PREFIX:}/ssd-role-manager/v3/api-docs/swagger-config'
+        url: '${SSD_IAM_PROXY_CONTEXT_PREFIX:}/ssd-role-manager/v3/api-docs'
+    server.port: 28885
+  ssd-transaction-manager-k8s.yml: |
+    app:
+      clean-archive-days: 180
+      task-expired-min: 2
+      cron:
+        completed: '${SSD_TM_CRON_COMPLETED:0 */15 * * * ?}'
+        dump: '${SSD_TM_CRON_DUMP:0 */5 * * * ?}'
+      kafka.topics:
+        internal:
+          sa-input:  ${SSD_KAFKA_INTERNAL_TOPIC_SA_INPUT}
+          sa-output: ${SSD_KAFKA_INTERNAL_TOPIC_SA_OUTPUT}
+          role-manager-input: ${SSD_KAFKA_INTERNAL_TOPIC_RM_INPUT}
+      startup:
+        update-props:
+          enabled: ${SSD_TM_ENABLE_STARTUP_SYNC:false}
+          adapter-urls:
+            gitlab: ${SSD_SA_GITLAB_URL:http://localhost}
+            jci: ${SSD_SA_JENKINS_CI_URL:http://localhost}
+            jcd: ${SSD_SA_JENKINS_CD_URL:http://localhost}
+            mock: ${SSD_SA_MOCK_BASE_URL:http://localhost}
+            snr: ${SSD_SA_SONAR_URL:http://localhost}
+            nci: ${SSD_SA_NEXUS_CI_URL:http://localhost}
+            ncd: ${SSD_SA_NEXUS_CD_URL:http://localhost}
+            dpt: ${SSD_SA_FOSE_BASE_URL:http://localhost}
+            dpm: ${SSD_SA_DPM_BASE_URL:http://localhost}
+            pact: ${SSD_ADAPTER_PACT_BASE_URL:http://localhost}
+            view: http://localhost
+          app-properties:
+            app.host.url: http://${SSD_NGINX_SERVER_NAME:srv.test.dev}:3000
+            org.bundle.default: advance
+            app.core-data.version: 2
+            app.core-data-v2.url:  http://${SSD_CLOUD_SERVICE_HOST:localhost}:8080/ssd-core-data${SSD_APPLICATION_NAME_SUFFIX:}/v2
+            ssp.url: https://localhost/ssp-portal/#/start/add-advanced
+      security:
+        auth:
+          enabled: true
+          user-id-resolving-mode: ${SSD_SECURITY_UID_RESOLVING_MODE:SUB}
+          role-resolving:
+            mode: ${SSD_SECURITY_ROLES_RESOLVING_MODE:HEADER}
+          privileges-resolving:
+            mode: ${SSD_SECURITY_PRIVILEGES_RESOLVING_MODE:HEADER}
+          unsecured-resources:
+            GET:
+              - /actuator/**
+              - /health
+              - /metrics/prometheus
+            POST:
+              - /actuator/loggers/**
+          system-roles-only-resources:
+            GET:
+              - /swagger-ui/**
+              - /v3/api-docs/**
+      swagger:
+        server-root-url: '${app.url.ssd-root}/ssd-transaction-manager'
+    springdoc:
+      swagger-ui:
+        config-url: '${SSD_IAM_PROXY_CONTEXT_PREFIX:}/ssd-transaction-manager/v3/api-docs/swagger-config'
+        url: '${SSD_IAM_PROXY_CONTEXT_PREFIX:}/ssd-transaction-manager/v3/api-docs'
+    server.port: 28887
+    spring:
+      liquibase:
+        enabled: true
+        change-log: ${SSD_DB_LIQUIBASE_CHANGELOGFILE:classpath:/db/changelog/db.changelog-master.yml}
+        default-schema: ${SSD_DB_LIQUIBASE_SCHEMA:ssd}
+        database-change-log-table: '${SSD_TM_LB_SUM_TABLE:databasechangelog}'
+  ssd-ui-admin-k8s.yml: |
+    server.port: 28886
+    app:
+      tool-check-tiomeout-milli: 10
+      url:
+        gateways: {{- if not .masterSystemIntegration }} {} {{- else }}
+          ssp:
+            inb: '${SSD_UI_ADMIN_CALLBACKS_SSP_KAFKA_INB_GATEWAY:http://ssd-kafka-inb-gateway:8080/v2/check}'
+            outb: '${SSD_UI_ADMIN_CALLBACKS_SSP_KAFKA_OUTB_GATEWAY:http://ssd-kafka-outb-gateway:8080/v2/check}'
+          gisupr:
+            inb: '${SSD_UI_ADMIN_CALLBACKS_GIS_KAFKA_INB_GATEWAY:http://ssd-kafka-inb-gateway:8080/v2/check}'
+            outb: '${SSD_UI_ADMIN_CALLBACKS_GIS_KAFKA_OUTB_GATEWAY:http://ssd-kafka-outb-gateway:8080/v2/check}'
+        {{- end }}
+        ssd-kafka-inb-gateway: '${SSD_UI_ADMIN_CALLBACKS_SSP_KAFKA_INB_GATEWAY:http://ssd-kafka-inb-gateway:8080/v2/check}'
+        ssd-kafka-outb-gateway: '${SSD_UI_ADMIN_CALLBACKS_SSP_KAFKA_OUTB_GATEWAY:http://ssd-kafka-outb-gateway:8080/v2/check}'
+        ssd-core-data-kafka-tool-check: '${SSD_UI_ADMIN_CALLBACKS_CORE_DATA:http://ssd-core-data:28888/v2/kafka-tool-check}'
+        my-callback: '${SSD_UI_ADMIN_CALLBACKS_SELF:http://ssd-ui-admin:28886/v2/sa-check-response}'
+        logout: '${app.security.ssd-frontal-proxy.internal-root}/logout'
+      security:
+        auth:
+          enabled: true
+          user-id-resolving-mode: ${SSD_SECURITY_UID_RESOLVING_MODE:SUB}
+          role-resolving:
+            mode: ${SSD_SECURITY_ROLES_RESOLVING_MODE:HEADER}
+          privileges-resolving:
+            mode: ${SSD_SECURITY_PRIVILEGES_RESOLVING_MODE:HEADER}
+          unsecured-resources:
+            GET:
+              - /v2/status
+              - /v2/properties/**
+              - /actuator/**
+              - /health
+              - /metrics/prometheus
+            POST:
+              - /actuator/loggers/**
+          system-roles-only-resources:
+            GET:
+              - /swagger-ui/**
+              - /v3/api-docs/**
+      status:
+        check:
+          cron: 0 */10 * ? * *
+      swagger:
+        server-root-url: '${app.url.ssd-root}/ssd-ui-admin'
+      settings:
+        mode: '${SSD_UI_ADMIN_CONFIG_MODE:db}'
+        org.bundle.default: 'advance'
+        ssp.url: 'https://localhost/ssp-portal/#/start/add-advanced'
+        app:
+          sberspace.root: ${SBERSPACE_SEARCH_ROOT_URL:}
+          core-data-v2.url: '${app.url.ssd-root}/ssd-core-data/v2'
+          core-data:
+            version: 2
+            url: '${app.url.ssd-root}/ssd-core-data'
+          host.url: '${app.url.ssd-root}/'
+          logo: '${SSD_UI_ADMIN_CONFIG_DEFAULT_LOGO:data:image/svg+xml,%3Csvg width="101" height="19" viewBox="0 0 101 19" xmlns="http://www.w3.org/2000/svg" %3E%3Cpath fill="%232d6eef" d="M93.0094 12.0627V9.24555C95.2375 9.24555 97.9267 9.88582 97.9267 12.3445C97.9267 14.419 96.2364 15.6227 93.2655 15.6227C90.9349 15.6227 88.8348 14.6751 87.503 13.2665L85.531 15.2641C87.1445 17.2362 89.9617 18.4399 93.2911 18.4399C98.0291 18.4399 101 16.0837 101 12.2676C101 8.47722 98.0035 6.42834 93.0094 6.42834V9.24555C90.3202 9.24555 88.7323 8.06744 88.7323 6.14662C88.7323 4.17458 90.3459 2.8172 93.1118 2.8172C95.4937 2.8172 97.2608 3.86725 98.2852 4.96852L100.36 3.07331C99.1304 1.51105 96.9023 0 93.1374 0C88.3994 0 85.659 2.61232 85.659 6.12101C85.659 9.39921 87.9384 12.0627 93.0094 12.0627Z" /%3E%3Cpath fill="%232d6eef" fillRule="evenodd" clipRule="evenodd" d="M25.8821 5.86391C25.4426 6.97953 25.2229 8.20501 25.2229 9.54036C25.2229 10.9771 25.4511 12.2702 25.9075 13.4196C26.3639 14.5522 27.0062 15.5156 27.8344 16.3101C28.6627 17.0876 29.66 17.6877 30.8263 18.1103C32.0095 18.516 33.3111 18.7188 34.7309 18.7188C36.1677 18.7188 37.4693 18.4991 38.6356 18.0596C39.8188 17.6032 40.8245 16.9693 41.6528 16.158C42.4811 15.3466 43.1149 14.3831 43.5544 13.2675C44.0108 12.1519 44.239 10.9264 44.239 9.59107C44.239 8.1543 44.0108 6.86965 43.5544 5.73714C43.098 4.60462 42.4557 3.64959 41.6274 2.87205C40.7992 2.0776 39.7935 1.46908 38.6102 1.0465C37.4439 0.623919 36.1508 0.412629 34.7309 0.412629C33.2773 0.412629 31.9673 0.640823 30.8009 1.09721C29.6346 1.53669 28.6373 2.16211 27.8091 2.97347C26.9808 3.78482 26.3385 4.7483 25.8821 5.86391ZM28.95 11.9998C28.6965 11.2391 28.5697 10.4278 28.5697 9.56571C28.5697 8.63604 28.7049 7.79088 28.9754 7.03023C29.2628 6.26959 29.6684 5.61882 30.1924 5.07792C30.7333 4.52011 31.3841 4.08908 32.1447 3.78482C32.9054 3.48056 33.759 3.32843 34.7056 3.32843C35.7198 3.32843 36.6072 3.49746 37.3678 3.83553C38.1454 4.15669 38.7962 4.59617 39.3202 5.15398C39.8442 5.71178 40.2329 6.37101 40.4865 7.13165C40.7569 7.8923 40.8922 8.70365 40.8922 9.56571C40.8922 10.4954 40.7485 11.349 40.4611 12.1266C40.1738 12.8872 39.7596 13.538 39.2187 14.0789C38.6947 14.6198 38.0524 15.0424 37.2918 15.3466C36.548 15.6509 35.7029 15.803 34.7563 15.803C33.7421 15.803 32.8462 15.6424 32.0687 15.3213C31.308 14.9832 30.6657 14.5353 30.1417 13.9775C29.6177 13.4196 29.2205 12.7604 28.95 11.9998Z" /%3E%3Cpath fill="%232d6eef" d="M3.27077 0.691532H0L4.46245 18.4399H7.96141L12.1196 5.38217L16.1764 18.4399H19.65L24.0364 0.691532H20.9177L17.6977 13.9014L13.717 0.691532H10.6237L6.61761 13.9775L3.27077 0.691532Z" /%3E%3Cpath fill="%232d6eef" d="M70.8886 18.4399H67.7192V0.691532H70.8886V8.14585H73.5508L79.2556 0.691532H83.1096L76.3398 9.13468L84.1998 18.4399H80.1431L73.7029 10.7574H70.8886V18.4399Z" /%3E%3Cpath fill="%232d6eef" fillRule="evenodd" clipRule="evenodd" d="M64.1466 18.4139H60.9002L58.8484 13.9208C58.0692 14.1805 57.2381 14.3363 56.3811 14.3363C53.8099 14.3363 51.5244 12.856 51.5244 10.2069C51.5244 8.05121 52.9269 6.44097 55.4981 6.44097C57.7576 6.44097 59.0302 7.76552 59.9652 9.45368C60.2249 8.85633 60.3807 8.15509 60.3807 7.29803C60.3807 4.72684 58.7705 2.85688 55.7837 2.85688C52.9788 2.85688 50.6154 4.38921 50.6154 8.80439V18.4139H47.4988V8.33689C47.4988 2.98674 50.7452 0 55.6279 0C60.6404 0 63.4973 3.27243 63.4973 7.11623C63.4973 9.34979 62.6922 11.1418 61.3936 12.3885L64.1466 18.4139ZM56.3032 11.7392C56.8486 11.7392 57.394 11.6613 57.9134 11.4535C57.2641 10.051 56.5629 9.03813 55.576 9.03813C54.7189 9.03813 54.2514 9.55756 54.2514 10.2328C54.2514 11.2457 55.2383 11.7392 56.3032 11.7392Z" /%3E%3C/svg%3E}'
+          devops-portal.urls: '{  "orgPageUrl": "${SSD_UI_ADMIN_CONFIG_DOPS_URLS_ORG_PAGE:https://dops.portal/stub1}",  "orgUsersPageUrl": "${SSD_UI_ADMIN_CONFIG_DOPS_URLS_ORG_USERS_PAGE:https://dops.portal/stub2}",  "projectUsersPageUrl": "${SSD_UI_ADMIN_CONFIG_DOPS_URLS_PROJECT_USERS_PAGE:https://dops.portal/stub3}"}'
+          auth.roles.project-coordinator: project_coordinator
+          v2project.properties.migration.done: true
+          ui:
+            show-works-tools-page: ${SSD_UI_ADMIN_CONFIG_UI_SHOW_TOOLS_PAGE:false}
+            mode: '{    "projectPageHideGroup": ${SSD_UI_ADMIN_CONFIG_UI_MODE_PROJECT_PAGE_HIDE_GROUP:false},"projectPageHideUsers": ${SSD_UI_ADMIN_CONFIG_UI_MODE_PROJECT_PAGE_HIDE_USERS:false},"projectPageHideSearch": ${SSD_UI_ADMIN_CONFIG_UI_MODE_PROJECT_PAGE_HIDE_SEARCH:false}, "orgListPageHideButtons": ${SSD_UI_ADMIN_CONFIG_UI_MODE_ORG_LIST_PAGE_HIDE_BUTTONS:false},    "orgListPageHideFullName": ${SSD_UI_ADMIN_CONFIG_UI_MODE_ORG_LIST_PAGE_HIDE_FULLNAME:false},    "orgPageHideButtons": ${SSD_UI_ADMIN_CONFIG_UI_MODE_ORG_PAGE_HIDE_BUTTONS:true},    "orgPageHideSpreadSheetData": ${SSD_UI_ADMIN_CONFIG_UI_MODE_ORG_PAGE_HIDE_SPREADSHEET_DATA:false},    "orgUserRolesPageHideButtons": ${SSD_UI_ADMIN_CONFIG_UI_MODE_ORG_USER_ROLES_HIDE_BUTTONS:false},    "orgUserRolesPageHideSpreadSheetData": ${SSD_UI_ADMIN_CONFIG_UI_MODE_ORG_USER_ROLES_HIDE_SPREADSHEET_DATA:false},    "orgUserRolesPageHideFilter": ${SSD_UI_ADMIN_CONFIG_UI_MODE_ORG_USER_ROLES_HIDE_FILTER:false},    "projectUserRolesPageHideButtons": ${SSD_UI_ADMIN_CONFIG_UI_MODE_PROJECT_USER_ROLES_HIDE_BUTTONS:false},    "projectUserRolesPageHideSpreadSheetData": ${SSD_UI_ADMIN_CONFIG_UI_MODE_PROJECT_USER_ROLES_HIDE_SPREADSHEET_DATA:false},    "projectUserRolesPageHideFilter": ${SSD_UI_ADMIN_CONFIG_UI_MODE_PROJECT_USER_ROLES_HIDE_FILTER:false},    "orgPageAddStub": ${SSD_UI_ADMIN_CONFIG_UI_MODE_PROJECT_DASHBOARD_STUB:false}}'
+            show.page: '{    "WorksToolsPage": ${SSD_UI_ADMIN_CONFIG_UI_SHOW_TOOLS_PAGE:true},    "BilingAndLimitsPage": ${SSD_UI_ADMIN_CONFIG_UI_SHOW_BILLING_LIMITS_PAGE:true},    "HelpPage": ${SSD_UI_ADMIN_CONFIG_UI_SHOW_HELP_PAGE:true},    "RolesPage": ${SSD_UI_ADMIN_CONFIG_UI_SHOW_ROLES_PAGE:true}}'
+            #dops.url: '{"orgPageUrl": "${app.url.ssd-root}/#/organization", "orgUsersPageUrl": "${app.url.ssd-root}/#/organization", "projectUsersPageUrl": "${app.url.ssd-root}/#/organization"}'
+            dops.url: '{"orgPageUrl": "${app.url.ssd-root}/organization", "orgUsersPageUrl": "${app.url.ssd-root}/organization", "projectUsersPageUrl": "${app.url.ssd-root}/organization"}'
+          features.ai: '{    "orgListPageHideButtons": true,    "orgListPageHideFullName": true}'
+          role-manager.url: '${app.url.ssd-root}/ssd-role-manager'
+        integration.url: '${SSD_UI_ADMIN_CONFIG_GT_PORTAL_URL:https://tst-mngm.platform.gov.ru/gt-portal}'
+        #orgUsersPageUrl: '{ "orgPageUrl": "${app.url.ssd-root}/#/organization", "orgUsersPageUrl": "${app.url.ssd-root}/#/organization", "projectUsersPageUrl": "${app.url.ssd-root}/#/organization" }'
+        orgUsersPageUrl: '{ "orgPageUrl": "${app.url.ssd-root}/organization", "orgUsersPageUrl": "${app.url.ssd-root}/organization", "projectUsersPageUrl": "${app.url.ssd-root}/organization" }'
+        jazz.integration.root: '${SSD_UI_ADMIN_CONFIG_JAZZ_ROOT:https://salutejazz.ru}'
+        ymetrics.config: '{"enabled": true, "counters": [{"id": 90000000, "options": {"clickmap": true, "trackLinks": true, "accurateTrackBounce": true, "webvisor": true }}]}'
+    springdoc:
+      swagger-ui:
+        config-url: '${SSD_IAM_PROXY_CONTEXT_PREFIX:}/ssd-ui-admin/v3/api-docs/swagger-config'
+        url: '${SSD_IAM_PROXY_CONTEXT_PREFIX:}/ssd-ui-admin/v3/api-docs'
+  ssd-event-processor-k8s.yml: |
+    server.port: ${SSD_SERVER_PORT:28889}
+    spring:
+      liquibase:
+        default-schema: ssd
+        enabled: true
+        change-log: classpath:/db/changelog/db.changelog-master.yml
+        database-change-log-table: '${SSD_EVENT_PROCESSOR_LB_SUM_TABLE:databasechangelog-event-processor}'
+    app:
+      security:
+        auth:
+          enabled: true
+          user-id-resolving-mode: ${SSD_SECURITY_UID_RESOLVING_MODE:SUB}
+          role-resolving:
+            mode: ${SSD_SECURITY_ROLES_RESOLVING_MODE:HEADER}
+          privileges-resolving:
+            mode: ${SSD_SECURITY_PRIVILEGES_RESOLVING_MODE:HEADER}
+          unsecured-resources:
+            GET:
+              - /actuator/**
+              - /health
+              - /metrics/prometheus
+          system-roles-only-resources:
+            GET:
+              - /swagger-ui/**
+              - /v3/api-docs/**
+      swagger:
+        server-root-url: '${app.url.ssd-root}/${app.keywords.full-name}'
+      kafka:
+        topics:
+          ssd-events: ${SSD_KAFKA_EVENTS_TOPIC:ssd-events}
+        events:
+          producer.enabled: ${SSD_ENABLE_EVENT_PRODUCING:false}
+        gateway:
+          ssd:
+            core-data-urls:
+              projects-url: '${SSD_EVENT_PROCESSOR_URLS_PROJECTS:http://ssd-core-data:28888/v3/projects}'
+              projects-tools-url: '${SSD_EVENT_PROCESSOR_URLS_PROJECTS_TOOLS:http://ssd-core-data:28888/v3/project_tools}'
+              tools-url: '${SSD_EVENT_PROCESSOR_URLS_TOOLS:http://ssd-core-data:28888/v2/tools}'
+    springdoc:
+      swagger-ui:
+        config-url: '${SSD_IAM_PROXY_CONTEXT_PREFIX:}/${app.keywords.full-name}/v3/api-docs/swagger-config'
+        url: '${SSD_IAM_PROXY_CONTEXT_PREFIX:}/${app.keywords.full-name}/v3/api-docs'
+  ssd-kafka-integration-adapter-k8s.yml: |
+    debug: ${SSD_KAFKA_INTEGR_ADAPTER_DEBUG_ENABLED:false}
+    server:
+      port: 28891
+    app:
+      ssd-rm:
+        root-url: ${SSD_ROLE_MANAGER_ROOT_URL}
+      keys:
+        response-send-timeout-ms: ${SSD_KIA_2094_TS}
+        stub-2094: ${SSD_KIA_2094_STUB:false}
+      project-tools:
+        filters:
+          filepath: "${SSD_KIA_INCOMING_PROJECT_TOOLS_PARAMS_FILTERS_PATH:}"
+      kafka:
+        integrationEnabled: true
+        gateway:
+          outdoor:
+            bootstrap-servers: '${SSD_KAFKA_EXTERNAL_GATEWAY_KAFKA_SERVERS:${SSD_KAFKA_GATEWAY_KAFKA_SERVERS}}'
+            consumer:
+              client-id: '${app.keywords.full-name}-${spring.profiles.active}-${SSD_DEPLOYMENT_ENV:dev}-outdoor-${HOSTNAME:_undef}'
+              group-id: '${app.keywords.full-name}-${spring.profiles.active}-${SSD_DEPLOYMENT_ENV:dev}-outdoor'
+            ssd-from-ssp-input: '${SSD_KAFKA_INTEGRATION_INPUT_TOPIC:ssd-pvssd}'
+            ssd-from-ssp-input-v2: '${SSD_KAFKA_INTEGRATION_INPUT_TOPIC_V2:ssd-pvssd-v2}'
+            ssp-from-ssd-output: '${SSD_KAFKA_INTEGRATION_OUTPUT_TOPIC:v2-message-from-product}'
+            ssl-config:
+              security-protocol: ${SSD_KAFKA_EXTERNAL_SECURITY_PROTOCOL:PLAINTEXT}
+              enabled-protocols: ${SSD_KAFKA_EXTERNAL_SSL_SECURITY_ENABLED_PROTOCOLS:TLSv1.2,TLSv1.3}
+              ssl-protocol: ${SSD_KAFKA_EXTERNAL_SSL_SECURITY_PROTOCOL:TLSv1.3}
+              trust-store-location: ${props-override.kafka-external-ssl.trust-store-location:${SSD_KAFKA_EXTERNAL_SSL_TRUSTSTORE_LOCATION:}}
+              trust-store-password: ${props-override.kafka-external-ssl.trust-store-password:${SSD_KAFKA_EXTERNAL_SSL_TRUSTSTORE_PASSWORD:}}
+              trust-store-type: ${SSD_KAFKA_EXTERNAL_SSL_TRUSTSTORE_TYPE:JKS}
+              key-store-location: ${props-override.kafka-external-ssl.key-store-location:${SSD_KAFKA_EXTERNAL_SSL_KEYSTORE_LOCATION:}}
+              key-store-password: ${props-override.kafka-external-ssl.key-store-password:${SSD_KAFKA_EXTERNAL_SSL_KEYSTORE_PASSWORD:}}
+              key-store-type: ${SSD_KAFKA_EXTERNAL_SSL_KEYSTORE_TYPE:JKS}
+          ssd:
+            core-data-urls:
+              projects-url: '${SSD_CORE_DATA_ROOT_URL:http://ssd-core-data:28888}/v3/projects'
+              external-project-update-url: '${SSD_CORE_DATA_ROOT_URL:http://ssd-core-data:28888}/v3/external/project_mutability'
+              projects-tools-url: '${SSD_CORE_DATA_ROOT_URL:http://ssd-core-data:28888}/v3/project_tools'
+              projects-tool-entity-url: '${SSD_CORE_DATA_ROOT_URL:http://ssd-core-data:28888}/v4/organizations/{org_key}/projects/{project_key}/tools/{tool_key}/entities/{entity_id}'
+            role-manager-urls:
+              user-process-url: '${SSD_ROLE_MANAGER_ROOT_URL:http://ssd-role-manager:28885}/v2/external/user_roles'
+              user-process-url-v2: '${SSD_ROLE_MANAGER_ROOT_URL:http://ssd-role-manager:28885}/v3/external/user_roles'
+              user-by-id-url: '${SSD_ROLE_MANAGER_ROOT_URL:http://ssd-role-manager:28885}/v2/external/user/{userId}/username'
+            integration-task-timeout-sec: 600
+            integration-processors:
+              gisupr: 'sber.platform.ssdp.integr.kafka.model.BaseRequestProcessor'
+              pao: 'sber.platform.ssdp.integr.kafka.model.PaoRequestProcessor'
+        topics:
+          ssd-from-ssp-input: ${SSD_KAFKA_INTEGRATION_INPUT_TOPIC:ssd-pvssd}
+          ssp-from-ssd-output: ${SSD_KAFKA_INTEGRATION_OUTPUT_TOPIC:v2-message-from-product}
+          internal:
+            sa-input: ${SSD_KAFKA_INTERNAL_TOPIC_SA_INPUT}
+            sa-output: ${SSD_KAFKA_INTERNAL_TOPIC_SA_OUTPUT}
+            role-manager-events: ${SSD_KAFKA_INTERNAL_TOPIC_RM_EVENTS}
+            role-manager-input: ${SSD_KAFKA_INTERNAL_TOPIC_RM_INPUT}
+      security:
+        auth:
+          enabled: true
+          user-id-resolving-mode: ${SSD_SECURITY_UID_RESOLVING_MODE:SUB}
+          role-resolving:
+            mode: ${SSD_SECURITY_ROLES_RESOLVING_MODE:HEADER}
+          privileges-resolving:
+            mode: ${SSD_SECURITY_PRIVILEGES_RESOLVING_MODE:HEADER}
+          unsecured-resources:
+            GET:
+              - /actuator/**
+              - /health
+              - /metrics/prometheus
+            POST:
+              - /actuator/loggers/**
+      swagger:
+          server-root-url: '${app.url.ssd-root}/ssd-kafka-integration-adapter'
+
+    springdoc:
+      swagger-ui:
+        config-url: '${SSD_IAM_PROXY_CONTEXT_PREFIX:}/ssd-kafka-integration-adapter/v3/api-docs/swagger-config'
+        url: '${SSD_IAM_PROXY_CONTEXT_PREFIX:}/ssd-kafka-integration-adapter/v3/api-docs'
+    spring:
+      autoconfigure.exclude: org.springframework.boot.autoconfigure.web.servlet.error.ErrorMvcAutoConfiguration
+  ssd-side-menu-backend-k8s.yml: |
+    server:
+      port: ${SSD_SERVER_PORT:28892}
+    app:
+      swagger:
+          server-root-url: '${app.url.ssd-root}/ssd-side-menu-backend'
+      config:
+        path-to-content-file: ${SSD_MENU_DEFAULT_PATH_CONFIG_CONTENT:}
+        path-to-resources-file: ${SSD_MENU_DEFAULT_PATH_CONFIG_RESOURCES:}
+      algorithms:
+        uri-anchor-post-processing-required: ${SSD_SIDE_MENU_BACKEND_ANCHOR_POST_PROCESSING_ENABLED:false}
+      menu-schema-pattern: '${SSD_MENU_SCHEMA_PATTERN:^\d+\.\d+$}'
+      kafka:
+        topics:
+          internal:
+            sa-input: ${SSD_KAFKA_INTERNAL_TOPIC_SA_INPUT}
+            sa-output: ${SSD_KAFKA_INTERNAL_TOPIC_SA_OUTPUT}
+            role-manager-events: ${SSD_KAFKA_INTERNAL_TOPIC_RM_EVENTS}
+            role-manager-input: ${SSD_KAFKA_INTERNAL_TOPIC_RM_INPUT}
+      security:
+        auth:
+          enabled: true
+          user-id-resolving-mode: ${SSD_SECURITY_UID_RESOLVING_MODE:SUB}
+          role-resolving:
+            mode: ${SSD_SECURITY_ROLES_RESOLVING_MODE:HEADER}
+          privileges-resolving:
+            mode: ${SSD_SECURITY_PRIVILEGES_RESOLVING_MODE:HEADER}
+          unsecured-resources:
+            GET:
+              - /actuator/**
+              - /health
+              - /metrics/prometheus
+            POST:
+              - /actuator/loggers/**
+          system-roles-only-resources:
+            GET:
+              - /swagger-ui/**
+              - /v3/api-docs/**
+    spring:
+      jackson:
+        default-property-inclusion: non_null
+      liquibase:
+        enabled: true
+        change-log: '${SSD_DB_LIQUIBASE_CHANGELOGFILE:classpath:/db/changelog/db.changelog-master.xml}'
+        default-schema: '${SSD_DB_LIQUIBASE_SCHEMA:ssd_menu_svc}'
+        database-change-log-table: '${SSD_DB_LIQUIBASE_LOG_TABLE:databasechangelog-ssdsmsvc}'
+        database-change-log-lock-table: '${SSD_DB_LIQUIBASE_LOG_LOCK_TABLE:databasechangeloglock-ssdsmsvc}'
+    springdoc:
+      swagger-ui:
+        config-url: '${SSD_IAM_PROXY_CONTEXT_PREFIX:}/ssd-side-menu-backend/v3/api-docs/swagger-config'
+        url: '${SSD_IAM_PROXY_CONTEXT_PREFIX:}/ssd-side-menu-backend/v3/api-docs'
+  ssd-ai-service-k8s.yml: |
+    server.port: ${SSD_SERVER_PORT:28893}
+    app:
+      misc-requests: ${SSD_AI_SERVICE_MISC_REQUESTS_CONTROLLER_ENABLED:false}
+      giga:
+        model: ${SSD_AI_SERVICE_GIGA_MODEL:GigaChat}
+        post-processing:
+          key-max-length: ${SSD_AI_SERVICE_POST_PROCESSING_KEY_MAX_LENGTH:8}
+          key-cleanup-regex: ${SSD_AI_SERVICE_POST_PROCESSING_KEY_CLEANUP_REGEX:[^a-zA-Z0-9]}
+          key-forbidden-literals: ${SSD_AI_SERVICE_POST_PROCESSING_FORBIDDEN_KEYS:.atom,.git,.well-known}
+          name-max-length: ${SSD_AI_SERVICE_POST_PROCESSING_NAME_MAX_LENGTH:127}
+          description-max-length: ${SSD_AI_SERVICE_POST_PROCESSING_DESCRIPTION_MAX_LENGTH:255}
+        prompt-templates: '${SSD_AI_SERVICE_PROMPT_TEMPLATES:{"system": "Поставь себя на место координатора организации", "user": "Сгенерируй название для проекта на русском языке (первая строка до <<name_size_limit>> символов, включая пробелы), сгенерируй ключ для проекта (вторая строка <<key_size_limit>> символов), состоящий из латинских букв и цифр в нижнем регистре, а также сгенерируй описание проекта на русском языке (третья строка до <<description_size_limit>> символов, включая пробелы). Не нужно генерировать что-либо на английском языке, только русский. Целью проекта будет: [ <<project_goal>> ].Ответ выдай в формате JSON, сгенерированое имя проекта помести в значение ключа projectName, сгенерированый ключ проекта помести в значение ключа projectKey, сгенерированое описание проекта помести в значение ключа description"}}'
+        stub-generation: ${SSD_AI_SERVICE_STUB_GENERATION:true}
+        urls:
+          auth:
+            url: ${SSD_AI_SERVICE_URLS_GIGA_TOKEN:https://ngw.devices.sberbank.ru:9443/api/v2/oauth}
+            enable-token-caching: ${SSD_AI_SERVICE_URLS_GIGA_TOKEN_ENABLE_CACHING:true}
+          completions: ${SSD_AI_SERVICE_URLS_GIGA_COMPLETION:https://gigachat.devices.sberbank.ru/api/v1/chat/completions}
+        secrets:
+          client-id: ${SSD_AI_SERVICE_SECRETS_GIGA_CLIENT_ID}
+          client-secret: ${SSD_AI_SERVICE_SECRETS_GIGA_CLIENT_SECRET}
+          request-id: ${SSD_AI_SERVICE_SECRETS_GIGA_RQ_UID}
+      swagger:
+          server-root-url: '${app.url.ssd-root}/ssd-ai-service'
+      security:
+        auth:
+          enabled: true
+          user-id-resolving-mode: ${SSD_SECURITY_UID_RESOLVING_MODE:SUB}
+          role-resolving:
+            mode: ${SSD_SECURITY_ROLES_RESOLVING_MODE:HEADER}
+          privileges-resolving:
+            mode: ${SSD_SECURITY_PRIVILEGES_RESOLVING_MODE:HEADER}
+          unsecured-resources:
+            GET:
+              - /actuator/**
+              - /health
+              - /metrics/prometheus
+            POST:
+              - /actuator/loggers/**
+          system-roles-only-resources:
+            GET:
+              - /swagger-ui/**
+              - /v3/api-docs/**
+    springdoc:
+      swagger-ui:
+        config-url: '${SSD_IAM_PROXY_CONTEXT_PREFIX:}/ssd-ai-service/v3/api-docs/swagger-config'
+        url: '${SSD_IAM_PROXY_CONTEXT_PREFIX:}/ssd-ai-service/v3/api-docs'
+  logback-k8s-default.xml: |
+    <configuration>
+        <property name="logsSubsystem" value="${SSD_LOGGING_SUBSYSTEM:SSDP}" />
+        <springProperty name="deploymentUnit" source="app.keywords.full-name" defaultValue="undef" />
+        <springProperty name="logsDir" source="logging.file.path" defaultValue="/var/log/ssd-v2/${deploymentUnit}" />
+        <springProperty name="logRotationMaxFileSize" source="logging.logback.rollingpolicy.max-file-size" defaultValue="100MB" />
+        <springProperty name="logRotationMaxHistoryDays" source="logging.logback.rollingpolicy.max-history" defaultValue="10" />
+        <appender name="FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+            <file>${logsDir}/spring.log</file>
+            <append>true</append>
+            <immediateFlush>true</immediateFlush>
+            <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+                <fileNamePattern>${logsDir}/server.%d{yyyyMMdd}.%i.log.gz</fileNamePattern>
+                <maxHistory>${logRotationMaxHistoryDays}</maxHistory>
+                <maxFileSize>${logRotationMaxFileSize}</maxFileSize>
+            </rollingPolicy>
+            <encoder>
+                <pattern>%d{yyyy-MM-dd HH:mm:ss} %-5level [%-7.7thread] %logger{20} - %msg%n</pattern>
+            </encoder>
+        </appender>
+        <appender name="AUDITLOGGER" class="ch.qos.logback.core.rolling.RollingFileAppender">
+            <file>${logsDir}/audit.log</file>
+            <append>true</append>
+            <immediateFlush>true</immediateFlush>
+            <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+                <fileNamePattern>${logsDir}/audit.%d{yyyyMMdd}.%i.log.gz</fileNamePattern>
+                <maxHistory>${logRotationMaxHistoryDays}</maxHistory>
+                <maxFileSize>${logRotationMaxFileSize}</maxFileSize>
+            </rollingPolicy>
+            <encoder class="net.logstash.logback.encoder.LoggingEventCompositeJsonEncoder">
+                <providers>
+                    <timestamp>
+                        <fieldName>createdAt</fieldName>
+                        <pattern>[UNIX_TIMESTAMP_AS_NUMBER]</pattern>
+                    </timestamp>
+                    <pattern>
+                        <pattern>
+                            {
+                              "deploymentUnit": "${deploymentUnit}",
+                              "nodeId": "%X{nodeId}",
+                              "threadName": "%thread",
+
+                              "session": "%X{session}",
+                              "userLogin": "%X{userLogin}",
+                              "userName": "%X{userName}",
+
+                              "sourceSystem": "${logsSubsystem}",
+                              "name": "%X{name}",
+                              "object_type": "%X{object_type}",
+                              "action": "%X{action}",
+                              "value": "%X{params}",
+                              "status": "%X{status}",
+
+                              "rqUid": "%X{rqUid}",
+                              "traceId": "%X{traceId}",
+                              "userNode": "%X{userNode}",
+                              "id": "%X{uuid}"
+                           }
+                        </pattern>
+                    </pattern>
+                </providers>
+            </encoder>
+        </appender>
+
+
+        <root level="TRACE">
+            <appender-ref ref="FILE"/>
+        </root>
+
+
+        <logger name="sber.platform.ssdp.security.aop.LogCallerContextAspect" additivity="false">
+            <appender-ref ref="AUDITLOGGER" />
+        </logger>
+    </configuration>
+  logback-k8s-platform.xml: |
+    <configuration>
+        <property name="logsSubsystem" value="${SSD_LOGGING_SUBSYSTEM:SSDP}" />
+        <springProperty name="deploymentUnit" source="app.keywords.full-name" defaultValue="undef" />
+        <springProperty name="logsDir" source="logging.file.path" defaultValue="/var/log/ssd-v2/${deploymentUnit}" />
+        <springProperty name="logRotationMaxFileSize" source="logging.logback.rollingpolicy.max-file-size" defaultValue="100MB" />
+        <springProperty name="logRotationMaxHistoryDays" source="logging.logback.rollingpolicy.max-history" defaultValue="10" />
+        <appender name="MAINLOGGER" class="ch.qos.logback.core.rolling.RollingFileAppender">
+            <file>${logsDir}/spring.log</file>
+            <append>true</append>
+            <immediateFlush>true</immediateFlush>
+            <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+                <fileNamePattern>${logsDir}/server.%d{yyyyMMdd}.%i.log.gz</fileNamePattern>
+                <maxHistory>${logRotationMaxHistoryDays}</maxHistory>
+                <maxFileSize>${logRotationMaxFileSize}</maxFileSize>
+            </rollingPolicy>
+            <encoder class="net.logstash.logback.encoder.LoggingEventCompositeJsonEncoder">
+                <providers>
+                    <timestamp>
+                        <fieldName>serverEventDatetime</fieldName>
+                        <pattern>[UNIX_TIMESTAMP_AS_NUMBER]</pattern>
+                    </timestamp>
+                    <pattern>
+                        <pattern>
+                            {
+                                "deploymentUnit": "${deploymentUnit}",
+                                "logLevel": "%level",
+                                "className": "%logger",
+                                "message": "%msg",
+                                "subsystem": "${logsSubsystem}",
+                                "threadName": "%thread",
+                                "rqUid": "%X{rqUid}",
+                                "traceId": "%X{traceId}"
+                            }
+                        </pattern>
+                    </pattern>
+                </providers>
+            </encoder>
+        </appender>
+        <appender name="AUDITLOGGER" class="ch.qos.logback.core.rolling.RollingFileAppender">
+            <file>${logsDir}/audit.log</file>
+            <append>true</append>
+            <immediateFlush>true</immediateFlush>
+            <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+                <fileNamePattern>${logsDir}/audit.%d{yyyyMMdd}.%i.log.gz</fileNamePattern>
+                <maxHistory>${logRotationMaxHistoryDays}</maxHistory>
+                <maxFileSize>${logRotationMaxFileSize}</maxFileSize>
+            </rollingPolicy>
+            <encoder class="net.logstash.logback.encoder.LoggingEventCompositeJsonEncoder">
+                <providers>
+                    <timestamp>
+                        <fieldName>createdAt</fieldName>
+                        <pattern>[UNIX_TIMESTAMP_AS_NUMBER]</pattern>
+                    </timestamp>
+                    <pattern>
+                        <pattern>
+                            {
+                              "deploymentUnit": "${deploymentUnit}",
+                              "nodeId": "%X{nodeId}",
+                              "threadName": "%thread",
+
+                              "session": "%X{session}",
+                              "userLogin": "%X{userLogin}",
+                              "userName": "%X{userName}",
+
+                              "sourceSystem": "${logsSubsystem}",
+                              "name": "%X{name}",
+                              "object_type": "%X{object_type}",
+                              "action": "%X{action}",
+                              "value": "%X{params}",
+                              "status": "%X{status}",
+
+                              "rqUid": "%X{rqUid}",
+                              "traceId": "%X{traceId}",
+                              "userNode": "%X{userNode}",
+                              "id": "%X{uuid}"
+                           }
+                        </pattern>
+                    </pattern>
+                </providers>
+            </encoder>
+        </appender>
+
+        <root level="TRACE">
+            <appender-ref ref="MAINLOGGER"/>
+        </root>
+
+        <logger name="sber.platform.ssdp.security.aop.LogCallerContextAspect" additivity="false">
+            <appender-ref ref="AUDITLOGGER" />
+        </logger>
+    </configuration>
+ {{- end }}
+{{- end }}
+
+

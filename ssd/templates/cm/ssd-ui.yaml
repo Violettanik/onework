@@ -1,0 +1,151 @@
+{{- $context := . }}
+{{- $fullName := include "ssd.fullname" . }}
+{{- $labels := include "ssd.labels" . }}
+{{- $selectorLabels := include "ssd.selectorLabels" . }}
+{{- with .Values.ssdUi }}
+ {{- if .enable }}
+ {{- $app := .appName }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $fullName }}-{{ $app }}
+  namespace: {{ $context.Release.Namespace }}
+  labels:
+    {{- $selectorLabels | nindent 4 }}
+data:
+  parent-menu-items.json: |
+    {{- if .menuStructureOverride }}
+      {{- .menuStructureOverride | nindent 4 }}
+    {{- else }}
+      []
+    {{- end }}
+  nginx.conf: |
+    worker_processes  {{ .env.NGINX_WORKER_PROCESSES }};
+    error_log  {{ if eq .config.logs.errorMode "off" }} off{{ else }} {{ .config.logs.rootFolder }}/error.log {{ .config.logs.errorMode }}{{ end }};
+    pid        /tmp/nginx/nginx.pid;
+    worker_rlimit_nofile {{ .env.NGINX_WORKER_RLIMIT_NOFILE }};
+
+    events {
+      worker_connections  {{ .env.NGINX_WORKER_CONNECTIONS }};
+    }
+
+    http {
+      include  /etc/nginx/mime.types;
+      index    index.html;
+
+      default_type application/octet-stream;
+      log_format   main '$remote_addr - $remote_user [$time_local]  $status '
+        '"$request" $body_bytes_sent "$http_referer" '
+        '"$http_user_agent" "$http_x_forwarded_for"';
+      sendfile     on;
+      tcp_nopush   on;
+      
+      client_body_temp_path /tmp/nginx/nginx-client-body;
+      proxy_temp_path       /tmp/nginx/nginx-proxy;
+      fastcgi_temp_path     /tmp/nginx/nginx-fastcgi;
+      uwsgi_temp_path       /tmp/nginx/nginx-uwsgi;
+      scgi_temp_path        /tmp/nginx/nginx-scgi;
+      
+      # sets value to `*` if not present:
+      # default is *, but if any value exists already,
+      # the new header will have and empty value, as a result will not be set
+      map $upstream_http_access_control_allow_origin $add_wildcard_cors_if_not_exists {
+        default '*';
+        '~.' "";
+      }
+
+      server { # UI
+        listen       3000;
+        server_name  {{ .env.NGINX_UI_SERVER_NAME }};
+        access_log {{ if eq .config.logs.accessMode "off" }} off{{ else }} {{ .config.logs.rootFolder }}/access.log {{ .config.logs.accessMode }}{{ end }};
+        root    /etc/nginx/html;
+        gzip on;
+        gzip_types application/json;
+        large_client_header_buffers {{ .env.NGINX_LARGE_CLIENT_HEADER_BUFFER_CONFIG }};
+        
+        error_page 404 = /;
+        
+        location / {
+          expires 30d;
+          autoindex on;
+        }
+
+        location ~ ^/(index.html|favicon.svg) {
+          if_modified_since off;
+          add_header Last-Modified "";
+          add_header Cache-Control no-cache;
+        }
+
+        location  ~ ^/(js|css|images|fonts|mf)/ {
+          gzip_static on;
+          if_modified_since off;
+          add_header Last-Modified "";
+          add_header Cache-Control "public, max-age=31536000";
+        }
+    
+        location = /mf/sidemenu/sidemenu.config.json {
+          if_modified_since off;
+          gzip_static on;
+          add_header Last-Modified "";
+          add_header Cache-Control no-cache;
+        }
+
+        location ~ ^/?(parentMenuItems.json|childrenMenuItems.json|parent-menu-items.json) {
+          if_modified_since off;
+          add_header Last-Modified "";
+          add_header Cache-Control no-cache;
+        }
+
+        location ~ ^/?(.*\.ttf|.*\.eot|.*\.woff2|.*\.woff) {
+          add_header 'Access-Control-Allow-Origin' $add_wildcard_cors_if_not_exists;
+        }
+
+        location = /health {
+            access_log off;
+            add_header Content-Type application/json;
+            return 200 "{\"status\":\"pass\",\"releaseId\":\"1.17\",\"version\":\"1\",\"serviceId\":\"$hostname\",\"description\":\"health of ssd-ui\"}";
+        }
+      }
+    }
+
+  logrotate.conf: |
+    {{- if ne .config.logs.accessMode "off" }} 
+    {{ .config.logs.rootFolder }}/access.log {
+      rotate {{ .config.logs.rotation.access.depth | default "10" }}
+      size {{ .config.logs.rotation.access.size | default "5M" }}
+      missingok
+      copytruncate
+      nocreate
+      nodelaycompress
+      nomail
+      notifempty
+      noolddir
+      compress
+      postrotate
+            echo "Log {{ .config.logs.rootFolder }}/access.log was logrotated" && nginx -s reload
+      endscript
+    }
+    {{- end }}
+
+
+    {{- if ne .config.logs.errorMode "off" }} 
+    {{ .config.logs.rootFolder }}/error.log {
+      rotate {{ .config.logs.rotation.error.depth | default "10" }}
+      size {{ .config.logs.rotation.error.size | default "10M" }}
+      missingok
+      copytruncate
+      nocreate
+      nodelaycompress
+      nomail
+      notifempty
+      noolddir
+      compress
+      postrotate
+            echo "Log {{ .config.logs.rootFolder }}/error.log was logrotated" && nginx -s reload
+      endscript
+    }
+    {{- end }}
+
+  {{- end }}
+{{- end }}
