@@ -1,0 +1,9 @@
+*
+
+!pl/ssd-ui.tar.gz
+!docker/ssd-ui/mime.types
+!docker/ssd-ui/nginx.conf
+!docker/ssd-ui/start.sh
+!docker/common/shell/setup
+!docker/common/shell/logrotate_loop.sh
+!docker/common/shell/vault_secret_await_loop.sh
