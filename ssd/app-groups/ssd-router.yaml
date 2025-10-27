@@ -243,7 +243,17 @@ ssdProxyWs:
               ngx.exit(200);
           }
       }
-    
+      location = /ssd/ssd-side-menu-backend/v1/logout {
+          access_by_lua_block {
+              if ngx.var['cookie_CONVEYOR_LOGOUT'] ~= 'true' then
+                  ngx.header["Set-Cookie"] = "CONVEYOR_LOGOUT=true;Path=/ssd;HttpOnly=true;Secure=true;SameSite=LaX;Max-Age=1d"
+              end
+              ngx.status = 200
+              ngx.say('{ "httpStatusWrap": { "value": 200, "reasonPhrase": "OK", "error": false }, "serviceResponseError": null,  "returned": "true" }')
+              ngx.header.content_type = 'application/JSON';
+              ngx.exit(200);
+          }
+      }
 
 ssdUi:
   enable: true
