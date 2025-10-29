@@ -42,7 +42,7 @@ ssdCommon:
     SSD_IAM_PROXY_EXTERNAL_ROOT: https://onework.voda.ru/ssd
     SSD_IAM_PROXY_INTERNAL_ROOT: http://ssd-proxy-ws:3001/ssd
     #SSD_KAFKA_GATEWAY_KAFKA_SERVERS: __ssd_kafka_servers__ # ssd-internal-message-broker:9092
-    SSD_KAFKA_GATEWAY_KAFKA_SERVERS: 192.168.139.80:9092
+    SSD_KAFKA_GATEWAY_KAFKA_SERVERS: 192.168.139.84:9092
     #SSD_KAFKA_INTERNAL_TOPIC_RM_EVENTS: ssd-internal-rm-events-__kafka_topics_suffix__
     #SSD_KAFKA_INTERNAL_TOPIC_RM_INPUT: ssd-internal-rm-input-__kafka_topics_suffix__
     #SSD_KAFKA_INTERNAL_TOPIC_SA_INPUT: ssd-internal-sa-input-__kafka_topics_suffix__
